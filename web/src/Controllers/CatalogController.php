@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MealPlanner\Controllers;
 
 use MealPlanner\Services\ApiClient;
+use MealPlanner\Services\SessionService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\PhpRenderer;
@@ -13,7 +14,8 @@ class CatalogController
 {
     public function __construct(
         private PhpRenderer $view,
-        private ApiClient $apiClient
+        private ApiClient $apiClient,
+        private SessionService $session
     ) {}
 
     /**
@@ -27,6 +29,7 @@ class CatalogController
             'title' => 'Catalogs - Meal Planner',
             'activeNav' => 'catalogs',
             'catalogs' => $result['catalogs'] ?? [],
+            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -39,7 +42,7 @@ class CatalogController
         $filePath = $data['file_path'] ?? '';
 
         if (empty($filePath)) {
-            // Redirect back with error
+            $this->session->flash('error', 'Please provide a file path.');
             return $response->withHeader('Location', '/catalogs')->withStatus(302);
         }
 
@@ -47,7 +50,24 @@ class CatalogController
             'file_path' => $filePath,
         ]);
 
-        // Redirect back to catalogs list
+        if (isset($result['error'])) {
+            $this->session->flash('error', 'Import failed: ' . $result['error']);
+        } elseif (isset($result['success']) && $result['success']) {
+            $msg = sprintf(
+                'Successfully imported "%s": %d recipes, %d chapters',
+                $result['catalog_name'] ?? 'catalog',
+                $result['recipes_imported'] ?? 0,
+                $result['chapters_imported'] ?? 0
+            );
+            $this->session->flash('success', $msg);
+
+            if (!empty($result['errors'])) {
+                $this->session->flash('warning', 'Some items had issues: ' . count($result['errors']) . ' errors');
+            }
+        } else {
+            $this->session->flash('warning', 'Import completed with unknown status.');
+        }
+
         return $response->withHeader('Location', '/catalogs')->withStatus(302);
     }
 }

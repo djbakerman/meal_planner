@@ -33,6 +33,11 @@ $container->set(MealPlanner\Services\ApiClient::class, function () use ($setting
     return new MealPlanner\Services\ApiClient($settings['api']['base_url']);
 });
 
+// Add session service to container
+$container->set(MealPlanner\Services\SessionService::class, function () {
+    return new MealPlanner\Services\SessionService();
+});
+
 // Create App with container
 AppFactory::setContainer($container);
 $app = AppFactory::create();
