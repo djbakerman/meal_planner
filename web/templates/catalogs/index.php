@@ -1,5 +1,17 @@
 <h1 class="mb-4">Recipe Catalogs</h1>
 
+<!-- Flash Messages -->
+<?php if (!empty($flash)): ?>
+    <?php foreach ($flash as $type => $messages): ?>
+        <?php foreach ((array)$messages as $message): ?>
+            <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($message) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endforeach; ?>
+    <?php endforeach; ?>
+<?php endif; ?>
+
 <!-- Import Form -->
 <div class="card mb-4">
     <div class="card-header">
