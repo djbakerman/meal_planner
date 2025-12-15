@@ -1,0 +1,38 @@
+# Environment files
+.env
+*.env.local
+
+# PHP / Composer
+/web/vendor/
+composer.lock
+
+# Python
+/api/__pycache__/
+/api/*.pyc
+/api/.venv/
+/api/venv/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build
+dist/
+build/
