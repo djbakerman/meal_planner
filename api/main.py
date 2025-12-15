@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from database import get_db
-from routers import catalogs, recipes
+from routers import catalogs, recipes, plans
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -104,7 +104,7 @@ async def get_stats(db: Session = Depends(get_db)):
 # ============================================
 app.include_router(catalogs.router, prefix="/api/catalogs", tags=["Catalogs"])
 app.include_router(recipes.router, prefix="/api/recipes", tags=["Recipes"])
-# app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])  # Module 4
+app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])
 
 
 # ============================================

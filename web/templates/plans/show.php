@@ -5,6 +5,18 @@
     </ol>
 </nav>
 
+<!-- Flash Messages -->
+<?php if (!empty($flash)): ?>
+    <?php foreach ($flash as $type => $messages): ?>
+        <?php foreach ((array)$messages as $message): ?>
+            <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($message) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endforeach; ?>
+    <?php endforeach; ?>
+<?php endif; ?>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><?= e($plan['name'] ?? 'Meal Plan') ?></h1>
     <div class="btn-group">
