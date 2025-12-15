@@ -1,4 +1,4 @@
 """
 API Routers package
 """
-from . import catalogs, recipes, plans
+from . import catalogs, recipes, plans, auth
