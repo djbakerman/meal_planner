@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MealPlanner\Controllers;
 
 use MealPlanner\Services\ApiClient;
+use MealPlanner\Services\SessionService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\PhpRenderer;
@@ -13,7 +14,8 @@ class PlanController
 {
     public function __construct(
         private PhpRenderer $view,
-        private ApiClient $apiClient
+        private ApiClient $apiClient,
+        private SessionService $session
     ) {}
 
     /**
@@ -27,6 +29,7 @@ class PlanController
             'title' => 'Meal Plans - Meal Planner',
             'activeNav' => 'plans',
             'plans' => $result['plans'] ?? [],
+            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -38,6 +41,7 @@ class PlanController
         return $this->view->render($response, 'plans/new.php', [
             'title' => 'New Meal Plan - Meal Planner',
             'activeNav' => 'plans',
+            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -48,19 +52,31 @@ class PlanController
     {
         $data = $request->getParsedBody();
 
+        // Ensure meal_types is an array
+        $mealTypes = $data['meal_types'] ?? ['dinner'];
+        if (!is_array($mealTypes)) {
+            $mealTypes = [$mealTypes];
+        }
+
         $result = $this->apiClient->post('api/plans/generate', [
-            'meal_types' => $data['meal_types'] ?? ['dinner'],
-            'count' => (int) ($data['count'] ?? 5),
-            'name' => $data['name'] ?? null,
+            'meal_types' => $mealTypes,
+            'recipe_count' => (int) ($data['count'] ?? 5),
+            'name' => !empty($data['name']) ? $data['name'] : null,
         ]);
 
         if (isset($result['error'])) {
-            // Handle error - redirect back with flash message
+            $this->session->flash('error', 'Failed to generate plan: ' . $result['error']);
             return $response->withHeader('Location', '/plans/new')->withStatus(302);
         }
 
         $planId = $result['id'] ?? 0;
-        return $response->withHeader('Location', "/plans/{$planId}")->withStatus(302);
+        if ($planId) {
+            $this->session->flash('success', 'Meal plan generated successfully!');
+            return $response->withHeader('Location', "/plans/{$planId}")->withStatus(302);
+        }
+
+        $this->session->flash('error', 'Failed to generate plan. Please try again.');
+        return $response->withHeader('Location', '/plans/new')->withStatus(302);
     }
 
     /**
@@ -72,6 +88,7 @@ class PlanController
         $plan = $this->apiClient->get("api/plans/{$id}");
 
         if (isset($plan['error'])) {
+            $this->session->flash('error', 'Meal plan not found.');
             return $response->withHeader('Location', '/plans')->withStatus(302);
         }
 
@@ -79,6 +96,7 @@ class PlanController
             'title' => ($plan['name'] ?? 'Meal Plan') . ' - Meal Planner',
             'activeNav' => 'plans',
             'plan' => $plan,
+            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -88,7 +106,18 @@ class PlanController
     public function delete(Request $request, Response $response, array $args): Response
     {
         $id = (int) $args['id'];
-        $this->apiClient->delete("api/plans/{$id}");
+        $result = $this->apiClient->delete("api/plans/{$id}");
+
+        if (isset($result['error'])) {
+            $this->session->flash('error', 'Failed to delete plan.');
+        } else {
+            $this->session->flash('success', 'Meal plan deleted.');
+        }
+
+        // For HTMX requests, return empty response (row already removed)
+        if ($request->hasHeader('HX-Request')) {
+            return $response->withStatus(200);
+        }
 
         return $response->withHeader('Location', '/plans')->withStatus(302);
     }
@@ -137,10 +166,17 @@ class PlanController
 
         // Check if HTMX request
         if ($request->hasHeader('HX-Request')) {
+            if (isset($result['error'])) {
+                // Return error message
+                $response->getBody()->write('<td colspan="6" class="text-danger">Failed to reroll: ' . htmlspecialchars($result['error']) . '</td>');
+                return $response;
+            }
+
             // Return partial with new recipe row
             return $this->view->render($response, 'plans/_recipe_row.php', [
                 'recipe' => $result['new_recipe'] ?? [],
                 'planId' => $planId,
+                'position' => $result['position'] ?? 0,
             ]);
         }
 

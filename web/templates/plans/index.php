@@ -3,6 +3,18 @@
     <a href="/plans/new" class="btn btn-primary">New Plan</a>
 </div>
 
+<!-- Flash Messages -->
+<?php if (!empty($flash)): ?>
+    <?php foreach ($flash as $type => $messages): ?>
+        <?php foreach ((array)$messages as $message): ?>
+            <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($message) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endforeach; ?>
+    <?php endforeach; ?>
+<?php endif; ?>
+
 <?php if (empty($plans)): ?>
     <div class="alert alert-info">
         No meal plans yet. <a href="/plans/new">Generate your first meal plan</a>.
