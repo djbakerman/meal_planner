@@ -3,26 +3,20 @@ Meal Planner FastAPI Backend
 Main application entry point
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-# Import routers (will be created in Module 2+)
-# from routers import recipes, plans, catalogs
-
-# Database connection (will be configured in Module 2)
-# from database import engine, Base
-
+from database import get_db
+from routers import catalogs, recipes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown"""
-    # Startup
     print("Starting Meal Planner API...")
-    # Create database tables (uncomment when database.py is ready)
-    # Base.metadata.create_all(bind=engine)
     yield
-    # Shutdown
     print("Shutting down Meal Planner API...")
 
 
@@ -57,26 +51,60 @@ async def health_check():
 # Stats Endpoint (Dashboard)
 # ============================================
 @app.get("/stats")
-async def get_stats():
-    """
-    Get dashboard statistics
-    TODO: Replace with actual database queries in Module 2
-    """
-    return {
-        "recipe_count": 0,
-        "catalog_count": 0,
-        "plan_count": 0,
-        "user_count": 0,
-        "recent_plans": [],
-    }
+async def get_stats(db: Session = Depends(get_db)):
+    """Get dashboard statistics"""
+    try:
+        # Get counts
+        recipe_count = db.execute(text("SELECT COUNT(*) FROM recipes")).scalar() or 0
+        catalog_count = db.execute(text("SELECT COUNT(*) FROM catalogs")).scalar() or 0
+        plan_count = db.execute(text("SELECT COUNT(*) FROM meal_plans")).scalar() or 0
+        user_count = db.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
+
+        # Get recent plans
+        recent_result = db.execute(text("""
+            SELECT mp.id, mp.name, mp.meal_types, mp.recipe_count, mp.created_at,
+                   COUNT(mpr.id) as actual_recipe_count
+            FROM meal_plans mp
+            LEFT JOIN meal_plan_recipes mpr ON mp.id = mpr.plan_id
+            GROUP BY mp.id
+            ORDER BY mp.created_at DESC
+            LIMIT 5
+        """))
+
+        recent_plans = []
+        for row in recent_result.mappings():
+            recent_plans.append({
+                "id": row["id"],
+                "name": row["name"] or "Unnamed Plan",
+                "recipe_count": row["actual_recipe_count"] or row["recipe_count"] or 0,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            })
+
+        return {
+            "recipe_count": recipe_count,
+            "catalog_count": catalog_count,
+            "plan_count": plan_count,
+            "user_count": user_count,
+            "recent_plans": recent_plans,
+        }
+    except Exception as e:
+        # If database isn't set up yet, return zeros
+        return {
+            "recipe_count": 0,
+            "catalog_count": 0,
+            "plan_count": 0,
+            "user_count": 0,
+            "recent_plans": [],
+            "error": str(e),
+        }
 
 
 # ============================================
-# Include Routers (uncomment as modules are completed)
+# Include Routers
 # ============================================
-# app.include_router(catalogs.router, prefix="/api/catalogs", tags=["Catalogs"])
-# app.include_router(recipes.router, prefix="/api/recipes", tags=["Recipes"])
-# app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])
+app.include_router(catalogs.router, prefix="/api/catalogs", tags=["Catalogs"])
+app.include_router(recipes.router, prefix="/api/recipes", tags=["Recipes"])
+# app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])  # Module 4
 
 
 # ============================================
