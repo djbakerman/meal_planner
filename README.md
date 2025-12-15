@@ -252,6 +252,7 @@ python page_analyzer.py -f /path/to/image.png -m qwen2-vl:8b -r 3
 | `--source-folder` | Override source folder for finding images |
 | `--include-low-confidence` | Also reprocess low-confidence pages |
 | `--cataloger-script` | Path to recipe_cataloger.py (default: recipe_cataloger.py) |
+| `--api-key` | Anthropic API key for Claude (passed to recipe_cataloger for reprocessing) |
 | `--check-only` | Only check if model is available |
 
 ### What Gets Flagged for Reprocessing
@@ -324,14 +325,14 @@ python meal_planner.py -s "chicken salad"
 ### Generate Grocery List / Meal Prep
 
 ```bash
-# Get grocery list for saved plan
-python meal_planner.py -c recipe_catalog.json -m claude-sonnet-4-20250514 --grocery-list
+# Get grocery list for saved plan (no catalog needed!)
+python meal_planner.py -m claude-sonnet-4-20250514 --grocery-list
 
 # Get meal prep plan for saved plan
-python meal_planner.py -c recipe_catalog.json -m claude-sonnet-4-20250514 --meal-prep
+python meal_planner.py -m claude-sonnet-4-20250514 --meal-prep
 
 # Get BOTH grocery and prep plans
-python meal_planner.py -c recipe_catalog.json -m claude-sonnet-4-20250514 --grocery-list --meal-prep
+python meal_planner.py -m claude-sonnet-4-20250514 --grocery-list --meal-prep
 ```
 
 ### Interactive Mode
@@ -357,16 +358,16 @@ python meal_planner.py -c recipe_catalog.json -m claude-sonnet-4-20250514 -i
 | Argument | Description |
 |----------|-------------|
 | `-s, --show` | Show saved meal plan. Optional: recipe number or name for details |
-| `-c, --catalog` | Path to one or more recipe catalog JSON files |
+| `-c, --catalog` | Path to one or more recipe catalog JSON files (required for --new) |
 | `-m, --model` | Model for AI features (required for --new, --grocery-list, --meal-prep) |
 | `--meal` | Meal type(s): breakfast, lunch, dinner, dessert, snack, any. Comma-separate for multiple: `lunch,dinner` |
 | `-n, --count` | Number of recipes (default: 5) |
-| `--new` | Generate new plan (otherwise loads saved) |
+| `--new` | Generate new plan (requires -c and -m) |
 | `--recipe` | Show recipe details ("all" to list all) - legacy, use -s instead |
-| `--grocery-list` | Generate consolidated grocery list |
-| `--meal-prep` | Generate meal prep plan |
+| `--grocery-list` | Generate consolidated grocery list (uses saved plan if no -c) |
+| `--meal-prep` | Generate meal prep plan (uses saved plan if no -c) |
 | `--no-grocery` | Skip grocery list generation |
-| `-i, --interactive` | Interactive mode |
+| `-i, --interactive` | Interactive mode (requires -c) |
 | `--save` | Export meal plan to JSON file |
 | `--api-key` | Anthropic API key for Claude |
 

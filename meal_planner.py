@@ -964,10 +964,71 @@ Examples:
         
         sys.exit(0)
     
-    # For other operations, catalog and model are required
-    if not args.catalog:
-        print("Error: -c/--catalog is required (unless using -s/--show)")
+    # Handle --grocery-list or --meal-prep with saved state (no catalog needed)
+    if (args.grocery_list or args.meal_prep) and not args.catalog and not args.new:
+        state_file = DEFAULT_STATE_FILE
+        saved_state = load_state(state_file)
+        
+        if not saved_state:
+            print(f"❌ No saved meal plan found at {state_file}")
+            print("Generate a meal plan first with: meal_planner.py -c <catalog> -m <model> --new")
+            sys.exit(1)
+        
+        if not args.model:
+            print("Error: -m/--model is required for AI features (grocery list, meal prep)")
+            sys.exit(1)
+        
+        # Get API key
+        api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
+        
+        # Validate Claude API key if using Claude
+        if is_claude_model(args.model) and not api_key:
+            print("Error: Claude models require an API key.")
+            print("Set ANTHROPIC_API_KEY environment variable or use --api-key")
+            sys.exit(1)
+        
+        selected = saved_state.get("recipes", [])
+        meal_type_str = saved_state.get("meal_type", "any")
+        
+        print(f"📂 Using saved meal plan ({len(selected)} {meal_type_str} recipes)")
+        
+        # Print meal plan first
+        print_meal_plan(selected, meal_type_str)
+        
+        # Generate grocery list
+        if args.grocery_list:
+            grocery_list = generate_grocery_list_with_ai(selected, args.model, api_key)
+            if grocery_list:
+                print("\n" + "=" * 60)
+                print("🛒 CONSOLIDATED GROCERY LIST")
+                print("=" * 60)
+                print(grocery_list)
+        
+        # Generate meal prep plan
+        if args.meal_prep:
+            meal_prep_plan = generate_meal_prep_plan_with_ai(selected, args.model, api_key)
+            if meal_prep_plan:
+                print("\n" + "=" * 60)
+                print("📋 MEAL PREP PLAN")
+                print("=" * 60)
+                print(meal_prep_plan)
+        
+        sys.exit(0)
+    
+    # For generating new plans, catalog is required
+    if not args.catalog and args.new:
+        print("Error: -c/--catalog is required when generating a new plan (--new)")
         sys.exit(1)
+    
+    # For other operations that need catalog
+    if not args.catalog and args.interactive:
+        print("Error: -c/--catalog is required for interactive mode")
+        sys.exit(1)
+    
+    if not args.catalog:
+        print("Error: -c/--catalog is required (or use -s to view saved plan, or --grocery-list/--meal-prep with saved plan)")
+        sys.exit(1)
+        
     if not args.model and (args.new or args.grocery_list or args.meal_prep or args.interactive):
         print("Error: -m/--model is required for generating plans or AI features")
         sys.exit(1)
