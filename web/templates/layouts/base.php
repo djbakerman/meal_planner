@@ -45,6 +45,24 @@
                         <a class="nav-link <?= ($activeNav ?? '') === 'catalogs' ? 'active' : '' ?>" href="/catalogs">Catalogs</a>
                     </li>
                 </ul>
+                <ul class="navbar-nav">
+                    <?php $user = $_SESSION['user'] ?? null; ?>
+                    <?php if ($user): ?>
+                        <li class="nav-item">
+                            <span class="nav-link text-light"><?= htmlspecialchars($user['username']) ?></span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout">Logout</a>
+                        </li>
+                    <?php else: ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/register">Register</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
             </div>
         </div>
     </nav>
