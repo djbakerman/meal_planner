@@ -78,7 +78,12 @@ Here are the recipes:
 Please provide:
 1. A consolidated grocery list organized by store section
 2. Quantities that make sense for shopping.
-3. IMPORTANT: Round up to the nearest whole purchase unit for produce/packaged goods (e.g., buy '1 Onion' not '0.5 Onion', '1 pack' not '0.3 pack'). Use exact measurements for bulk items (flour, rice).
+3. IMPORTANT: Round numbers cleanly.
+- Use fractions for volume (e.g., "½ cup", "1⅓ tbsp") instead of decimals ("0.5 cup", "1.33 tbsp").
+- Round awkward scaling results (e.g., if math gives 0.34 limes, say "½ lime" or "1 wedge").
+- If the amount is tiny (< ⅛ tsp), use "a pinch" or "to taste".
+- For produce, round up to whole units (e.g., 1 onion, not 0.8 onion).
+
 4. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
 
 Format the list clearly with sections and checkboxes (□)."""
@@ -157,6 +162,9 @@ FORMAT:
 🗓️ SUGGESTED COOK ORDER FOR THE WEEK
 - Day 1: Recipe X (needs longest marinating)
 - Day 2: Recipe Y...
+
+FORMATTING RULES:
+- When scaling amounts based on servings, ROUND to clean human-friendly fractions (e.g. "½ tsp", not "0.33 tsp"; "2 limes", not "1.66 limes", "1 onion" not "0.8 onion").
 """
 
     return llm.query_llm(prompt, model=model)
