@@ -14,7 +14,7 @@ print(f"DEBUG: Loaded env from {env_path} Result: {success}")
 print(f"DEBUG: DATABASE_URL in env: {os.environ.get('DATABASE_URL')}")
 print(f"DEBUG: All Env Keys: {[k for k in os.environ.keys() if 'DB' in k or 'DATA' in k]}")
 
-from api.routers import catalogs, recipes, plans, auth
+from api.routers import catalogs, recipes, plans, auth, ingredients
 
 app = FastAPI(
     title="Meal Planner API",
@@ -52,6 +52,7 @@ app.include_router(catalogs.router)
 app.include_router(recipes.router)
 app.include_router(plans.router)
 app.include_router(auth.router)
+app.include_router(ingredients.router)
 
 @app.get("/")
 async def root():

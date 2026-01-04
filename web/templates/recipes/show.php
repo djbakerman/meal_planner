@@ -137,6 +137,102 @@
 
         // Store Base Servings from PHP
         const baseServings = <?= $baseServes ?>;
+        const densityData = <?= json_encode($densityData ?? []) ?>;
+
+        // --- 1. Unit Standards (US Customary to mL) ---
+        const units = {
+            'cup': 236.59, 'cups': 236.59, 'c': 236.59,
+            'tablespoon': 14.79, 'tablespoons': 14.79, 'tbsp': 14.79, 'tbs': 14.79, 'T': 14.79,
+            'teaspoon': 4.93, 'teaspoons': 4.93, 'tsp': 4.93, 't': 4.93,
+            'gallon': 3785.41, 'gallons': 3785.41, 'gal': 3785.41,
+            'quart': 946.35, 'quarts': 946.35, 'qt': 946.35,
+            'pint': 473.18, 'pints': 473.18, 'pt': 473.18,
+            'ounce': 29.57, 'ounces': 29.57, 'oz': 29.57,
+            'pound': 453.59, 'pounds': 453.59, 'lb': 453.59, 'lbs': 453.59
+        };
+
+        // --- 2. Smart Unit Converter ---
+        function optimizeUnit(amount, currentUnit) {
+            const unitKey = currentUnit.toLowerCase().replace('.', '');
+            const mlPerUnit = units[unitKey];
+
+            if (!mlPerUnit) return { amount: amount, unit: currentUnit };
+
+            const totalMl = amount * mlPerUnit;
+
+            // Simple Logic: If < 0.25 cup (approx 4 tbsp), switch to Tbsp
+            // If < 1 tbsp, switch to Tsp
+            
+            if (unitKey.includes('cup') && amount < 0.25) {
+                const tbsp = totalMl / units['tbsp'];
+                // Only switch if it's a nice number (whole or 0.5)
+                if (Math.abs(Math.round(tbsp) - tbsp) < 0.2 || Math.abs((tbsp - 0.5) % 1) < 0.1) {
+                    return { amount: parseFloat(tbsp.toFixed(1)), unit: 'tbsp' };
+                }
+            }
+            
+            return { amount: parseFloat(amount.toFixed(2)), unit: currentUnit };
+        }
+
+        // Unicode Fraction Map
+        const vulgarFractions = {
+            '½': 0.5, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 0.25, '¾': 0.75,
+            '⅕': 0.2, '⅖': 0.4, '⅗': 0.6, '⅘': 0.8,
+            '⅙': 1 / 6, '⅚': 5 / 6, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875
+        };
+
+        function parseQuantity(str) {
+            // 1. Try Unicode Match First (e.g. "½")
+            for (const [char, val] of Object.entries(vulgarFractions)) {
+                if (str.includes(char)) {
+                    // Handle "1½" (Mixed)
+                    const parts = str.split(char);
+                    const whole = parseFloat(parts[0]) || 0;
+                    return whole + val;
+                }
+            }
+
+            // 2. Try ASCII Fraction (e.g. "1/2", "1 1/2")
+            if (str.includes('/')) {
+                const parts = str.trim().split(/\s+/);
+                let total = 0;
+                for (let part of parts) {
+                    if (part.includes('/')) {
+                        const [num, den] = part.split('/').map(Number);
+                        if (den !== 0) total += num / den;
+                    } else {
+                        total += parseFloat(part) || 0;
+                    }
+                }
+                return total;
+            }
+
+            // 3. Fallback to float
+            return parseFloat(str);
+        }
+
+        function formatQuantity(num) {
+            // Close enough to whole number?
+            if (Math.abs(Math.round(num) - num) < 0.05) return Math.round(num);
+
+            // Close to common fractions?
+            const fractions = [
+                { val: 0.25, str: '¼' }, { val: 0.5, str: '½' }, { val: 0.75, str: '¾' },
+                { val: 0.33, str: '⅓' }, { val: 0.66, str: '⅔' }, { val: 0.125, str: '⅛' }
+            ];
+
+            const whole = Math.floor(num);
+            const decimal = num - whole;
+
+            for (const frac of fractions) {
+                if (Math.abs(decimal - frac.val) < 0.05) {
+                    return (whole > 0 ? whole : '') + frac.str; // Return unicode 1½
+                }
+            }
+
+            // Fallback to 2 decimals
+            return parseFloat(num.toFixed(2));
+        }
 
         function updateIngredients() {
             const target = parseFloat(scalerInput.value);
@@ -145,32 +241,54 @@
             const ratio = target / baseServings;
 
             // Visual indicator
-            if (target !== baseServings) {
-                scaleLabel.style.opacity = '1';
-            } else {
-                scaleLabel.style.opacity = '0';
-            }
+            scaleLabel.style.opacity = (target !== baseServings) ? '1' : '0';
 
             ingredientItems.forEach(item => {
                 const originalText = item.dataset.original;
 
-                // Regex to match leading numbers/fractions
-                // Matches: "1", "1.5", "1/2", "1-2", "1 - 2"
-                // We want to replace the FIRST number found at the start.
+                // Matches start of string:
+                // 1. "1 1/2" or "1/2" or "1.5" or "1" (ASCII)
+                // 2. "1½" or "½" (Unicode)
+                const numberRegex = /^([\d\s\/.,]+|[\d\s]*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])+/;
 
-                // Simplistic Decimal Scaler:
-                // Look for leading float/int
-                const decimalMatch = originalText.match(/^(\d+(\.\d+)?)\s/);
+                const match = originalText.match(numberRegex);
 
-                if (decimalMatch) {
-                    const val = parseFloat(decimalMatch[1]);
-                    const newVal = Math.round((val * ratio) * 100) / 100; // Round to 2 decimals
-                    item.innerText = originalText.replace(decimalMatch[1], newVal);
-                    return;
+                if (match) {
+                    const numberStr = match[0].trim();
+                    // Skip if it looks like a range "1-2" (too complex for now)
+                    if (numberStr.includes('-')) return;
+
+                    const val = parseQuantity(numberStr);
+                    if (!isNaN(val) && val > 0) {
+                        const newVal = val * ratio;
+                        
+                        // Smart Unit Conversion
+                        // Extract suffix (rest of string)
+                        const suffix = originalText.substring(match[0].length).trim();
+                        // Try to find the first word as the unit
+                        const unitMatch = suffix.match(/^([a-zA-Z.]+)\s/);
+                        
+                        let finalVal = newVal;
+                        let finalSuffix = suffix;
+
+                        if (unitMatch) {
+                            const originalUnit = unitMatch[1];
+                            const optimized = optimizeUnit(newVal, originalUnit);
+                            
+                            finalVal = optimized.amount;
+                            if (optimized.unit !== originalUnit) {
+                                // Replace the unit in the suffix
+                                finalSuffix = suffix.replace(originalUnit, optimized.unit);
+                            }
+                        }
+
+                        const formattedVal = formatQuantity(finalVal);
+
+                        // Replace only the number part at the start
+                        item.innerText = formattedVal + " " + finalSuffix;
+                        return;
+                    }
                 }
-
-                // Allow Fractions? (Bonus, maybe later. For now just decimals)
-                // Just update text color if we can't scale it?
             });
         }
 

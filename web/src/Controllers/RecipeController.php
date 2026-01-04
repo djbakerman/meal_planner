@@ -84,10 +84,14 @@ class RecipeController
             return $response->withStatus(404);
         }
 
+        // Fetch Ingredient Density Map
+        $densityData = $this->api->get('/api/ingredients/density');
+
         $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'recipes/show.php', [
             'title' => $recipe['name'],
             'recipe' => $recipe,
+            'densityData' => $densityData, // Pass to view
             'queryParams' => $request->getQueryParams()
         ]);
     }

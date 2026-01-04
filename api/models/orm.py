@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON, Enum, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, JSON, Enum, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from api.database import Base
@@ -127,3 +127,15 @@ class User(Base):
     preferences = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_login = Column(DateTime(timezone=True))
+
+class IngredientDensity(Base):
+    __tablename__ = "ingredient_density"
+
+    ingredient_key = Column(String(255), primary_key=True)
+    display_name = Column(String(255))
+    density_g_per_ml = Column(Float)  # Float implies DOUBLE in MySQL usually
+    confidence_level = Column(String(50))
+    source = Column(String(255))
+    notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
