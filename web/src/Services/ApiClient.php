@@ -1,99 +1,136 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MealPlanner\Services;
+namespace App\Services;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 
-/**
- * HTTP client for communicating with the FastAPI backend
- */
 class ApiClient
 {
-    private Client $client;
+    private $client;
+    private $baseUrl;
 
-    public function __construct(string $baseUrl, int $timeout = 30)
+    public function __construct()
     {
+        // Internal Docker/network URL for FastAPI
+        // For development on localhost, we assume port 8000
+        $this->baseUrl = getenv('API_URL') ?: 'http://127.0.0.1:8000';
+
         $this->client = new Client([
-            'base_uri' => rtrim($baseUrl, '/') . '/',
-            'timeout' => $timeout,
+            'base_uri' => $this->baseUrl,
+            'timeout' => 10.0,
             'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ],
+                'X-Internal-Secret' => getenv('INTERNAL_API_KEY') ?? '',
+                'Accept' => 'application/json'
+            ]
         ]);
     }
 
-    /**
-     * GET request
-     */
-    public function get(string $endpoint, array $query = []): array
+    public function get($endpoint, $query = [])
     {
         try {
-            $response = $this->client->get($endpoint, [
-                'query' => $query,
+            $response = $this->client->request('GET', $endpoint, [
+                'query' => $query
             ]);
-            return json_decode($response->getBody()->getContents(), true) ?? [];
-        } catch (GuzzleException $e) {
-            return ['error' => $e->getMessage()];
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
+            error_log("API GET Request Error: " . $e->getMessage());
+            if ($e->hasResponse()) {
+                error_log("API Response: " . $e->getResponse()->getBody()->getContents());
+            }
+            return [];
         }
     }
 
-    /**
-     * POST request
-     */
-    public function post(string $endpoint, array $data = []): array
+    public function postMultipart($endpoint, $files = [], $data = [])
     {
         try {
-            $response = $this->client->post($endpoint, [
-                'json' => $data,
+            $multipart = [];
+
+            // Add files
+            foreach ($files as $name => $path) {
+                $multipart[] = [
+                    'name' => $name,
+                    'contents' => fopen($path, 'r'),
+                    'filename' => basename($path)
+                ];
+            }
+
+            // Add other data fields
+            foreach ($data as $key => $value) {
+                $multipart[] = [
+                    'name' => $key,
+                    'contents' => $value
+                ];
+            }
+
+            $response = $this->client->request('POST', $endpoint, [
+                'multipart' => $multipart
             ]);
-            return json_decode($response->getBody()->getContents(), true) ?? [];
-        } catch (GuzzleException $e) {
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
             return ['error' => $e->getMessage()];
         }
     }
 
-    /**
-     * PUT request
-     */
-    public function put(string $endpoint, array $data = []): array
+    public function post($endpoint, $data = [])
     {
         try {
-            $response = $this->client->put($endpoint, [
-                'json' => $data,
+            $response = $this->client->request('POST', $endpoint, [
+                'json' => $data
             ]);
-            return json_decode($response->getBody()->getContents(), true) ?? [];
-        } catch (GuzzleException $e) {
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
+            if ($e->hasResponse()) {
+                $body = $e->getResponse()->getBody()->getContents();
+                $json = json_decode($body, true);
+                if ($json)
+                    return $json;
+            }
             return ['error' => $e->getMessage()];
         }
     }
 
-    /**
-     * DELETE request
-     */
-    public function delete(string $endpoint): array
+    public function patch($endpoint, $data = [])
     {
         try {
-            $response = $this->client->delete($endpoint);
-            return json_decode($response->getBody()->getContents(), true) ?? [];
-        } catch (GuzzleException $e) {
+            $response = $this->client->request('PATCH', $endpoint, [
+                'json' => $data
+            ]);
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
+            // Return validation errors as result to handle 422/409 gracefully
+            if ($e->hasResponse()) {
+                $body = $e->getResponse()->getBody()->getContents();
+                $json = json_decode($body, true);
+                if ($json)
+                    return $json;
+            }
             return ['error' => $e->getMessage()];
         }
     }
 
-    /**
-     * Health check - verify API is reachable
-     */
-    public function healthCheck(): bool
+    public function put($endpoint, $data = [])
     {
         try {
-            $response = $this->get('health');
-            return ($response['status'] ?? '') === 'ok';
-        } catch (\Exception $e) {
-            return false;
+            $response = $this->client->request('PUT', $endpoint, [
+                'json' => $data
+            ]);
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    public function delete($endpoint, $query = [])
+    {
+        try {
+            $response = $this->client->request('DELETE', $endpoint, [
+                'query' => $query
+            ]);
+            return json_decode($response->getBody(), true);
+        } catch (RequestException $e) {
+            return ['error' => $e->getMessage()];
         }
     }
 }

@@ -1,0 +1,6 @@
+-- Add missing columns for Authentication and RBAC
+ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user';
+ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE DEFAULT NULL;
+ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN preferences JSON;
+ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL;

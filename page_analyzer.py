@@ -14,42 +14,19 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Tuple, List
 import requests
-
-# Ollama API endpoint
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-
-
-def encode_image_to_base64(image_path: str) -> str:
-    """Encode an image file to base64 string."""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+from backend import config, llm, image as img_utils
 
 
 def analyze_image_with_ollama(image_path: str, prompt: str, model: str = "llava") -> Optional[str]:
     """Send an image to Ollama vision model for analysis."""
-    image_base64 = encode_image_to_base64(image_path)
-    
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "images": [image_base64],
-        "stream": False,
-        "options": {
-            "temperature": 0.1,
-            "num_predict": 256
-        }
-    }
-    
+    # Encode image
     try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
-        response.raise_for_status()
-        return response.json().get("response", "")
-    except requests.exceptions.ConnectionError:
-        print(f"Error: Cannot connect to Ollama at {OLLAMA_API_URL}")
-        return None
+        image_base64 = img_utils.encode_image_to_base64(image_path)
     except Exception as e:
-        print(f"Error analyzing {image_path}: {e}")
+        print(f"Error encoding image {image_path}: {e}")
         return None
+        
+    return llm.query_ollama(prompt, model, images=[image_base64])
 
 
 def extract_page_numbers(image_path: str, model: str, max_retries: int = 2) -> dict:
@@ -431,7 +408,8 @@ def correlate_with_catalog(analysis: dict, catalog_path: str) -> dict:
 def check_ollama_available(model: str) -> bool:
     """Check if Ollama is running and the model is available."""
     try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        # Use simple status text check first to be safe
+        response = requests.get(config.OLLAMA_API_URL.replace("/api/generate", "/api/tags"), timeout=5)
         response.raise_for_status()
         models = response.json().get("models", [])
         model_names = [m.get("name", "").split(":")[0] for m in models]

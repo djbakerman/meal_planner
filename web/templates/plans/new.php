@@ -1,72 +1,105 @@
-<h1 class="mb-4">Generate New Meal Plan</h1>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-primary text-white p-4">
+                <h2 class="h4 mb-0">✨ Generate New Meal Plan</h2>
+            </div>
+            <div class="card-body p-4">
+                <form action="<?= url('/plans') ?>" method="POST">
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <form action="/plans/generate" method="post">
-                    <!-- Plan Name -->
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Plan Name (optional)</label>
-                        <input type="text"
-                               class="form-control"
-                               id="name"
-                               name="name"
-                               placeholder="e.g., Week of Dec 15">
-                    </div>
-
-                    <!-- Meal Types -->
-                    <div class="mb-3">
-                        <label class="form-label">Meal Types</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="meal_types[]" value="breakfast" id="breakfast">
-                            <label class="form-check-label" for="breakfast">Breakfast</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="meal_types[]" value="lunch" id="lunch">
-                            <label class="form-check-label" for="lunch">Lunch</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="meal_types[]" value="dinner" id="dinner" checked>
-                            <label class="form-check-label" for="dinner">Dinner</label>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Number of Days</label>
+                        <div class="range-wrap">
+                            <input type="range" class="form-range" min="1" max="14" step="1" id="recipeCount"
+                                name="recipe_count" value="5" oninput="countOutput.value = recipeCount.value">
+                            <div class="text-center fw-bold text-primary fs-3">
+                                <output id="countOutput">5</output> days
+                            </div>
+                            <div class="form-text text-center">
+                                Plan will generate recipes for each selected meal type for this many days.
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Recipe Count -->
-                    <div class="mb-3">
-                        <label for="count" class="form-label">Number of Recipes</label>
-                        <select class="form-select" id="count" name="count">
-                            <option value="3">3 recipes</option>
-                            <option value="5" selected>5 recipes</option>
-                            <option value="7">7 recipes (one week)</option>
-                            <option value="10">10 recipes</option>
-                            <option value="14">14 recipes (two weeks)</option>
-                        </select>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Filter by Catalog</label>
+                            <select class="form-select" name="catalog_id">
+                                <option value="">📚 All Recipes</option>
+                                <?php if (!empty($catalogs)): ?>
+                                    <?php foreach ($catalogs as $cat): ?>
+                                        <option value="<?= $cat['id'] ?>"><?= h($cat['name']) ?></option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Exclude Ingredients</label>
+                            <input type="text" class="form-control" name="excluded_ingredients"
+                                placeholder="e.g. shrimp, peanuts, mushrooms">
+                        </div>
                     </div>
 
-                    <!-- Submit -->
-                    <button type="submit" class="btn btn-primary">
-                        Generate Plan
-                    </button>
-                    <a href="/plans" class="btn btn-outline-secondary">Cancel</a>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold mb-2">Include Meal Types</label>
+                        <div class="row g-3">
+                            <?php
+                            $types = ['dinner' => '🍛', 'lunch' => '🥪', 'breakfast' => '🍳', 'dessert' => '🍰', 'snack' => '🍎'];
+                            foreach ($types as $key => $icon):
+                                $checked = $key === 'dinner' ? 'checked' : '';
+                                ?>
+                                <div class="col-6">
+                                    <div class="form-check card-radio">
+                                        <input class="form-check-input" type="checkbox" name="meal_types[<?= $key ?>]"
+                                            value="1" id="type_<?= $key ?>" <?= $checked ?>>
+                                        <label class="form-check-label d-flex align-items-center gap-2"
+                                            for="type_<?= $key ?>">
+                                            <span class="fs-5">
+                                                <?= $icon ?>
+                                            </span>
+                                            <span>
+                                                <?= ucfirst($key) ?>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg py-3">
+                            Generate Plan 🚀
+                        </button>
+                        <a href="<?= url('/plans') ?>" class="btn btn-link text-muted">Cancel</a>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
-
-    <div class="col-md-6">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h5 class="card-title">How it works</h5>
-                <ul class="mb-0">
-                    <li>Select the meal types you want to plan for</li>
-                    <li>Choose how many recipes you need</li>
-                    <li>We'll randomly select recipes from your catalogs</li>
-                    <li>You can "reroll" any recipe you don't like</li>
-                    <li>Generate a consolidated grocery list</li>
-                    <li>Get an AI-powered meal prep plan</li>
-                </ul>
-            </div>
-        </div>
-    </div>
 </div>
+
+<style>
+    /* Simple styling for the radio cards looks nice */
+    .card-radio .form-check-input {
+        float: right;
+    }
+
+    .card-radio {
+        border: 1px solid #dee2e6;
+        padding: 10px 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .card-radio:hover {
+        background-color: #f8f9fa;
+        border-color: #adb5bd;
+    }
+
+    .card-radio:has(.form-check-input:checked) {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+    }
+</style>

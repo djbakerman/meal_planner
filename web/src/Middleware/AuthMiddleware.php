@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace MealPlanner\Middleware;
+namespace App\Middleware;
 
-use MealPlanner\Services\SessionService;
+use App\Services\SessionService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
@@ -19,7 +19,8 @@ class AuthMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private SessionService $session
-    ) {}
+    ) {
+    }
 
     public function process(Request $request, RequestHandler $handler): Response
     {
@@ -38,7 +39,7 @@ class AuthMiddleware implements MiddlewareInterface
             $this->session->flash('warning', 'Please login to continue.');
 
             $response = new SlimResponse();
-            return $response->withHeader('Location', '/login')->withStatus(302);
+            return $response->withHeader('Location', url('/login'))->withStatus(302);
         }
 
         // Add user to request attributes for use in controllers

@@ -1,98 +1,321 @@
-<nav aria-label="breadcrumb" class="mb-4">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/plans">Meal Plans</a></li>
-        <li class="breadcrumb-item active"><?= e($plan['name'] ?? 'Meal Plan') ?></li>
-    </ol>
-</nav>
+<div class="row align-items-center mb-4">
+    <div class="col-md-6">
+        <a href="<?= url('/plans') ?>" class="text-decoration-none text-muted mb-2 d-inline-block">&larr; All Plans</a>
+        <h1 class="display-5 fw-bold mb-0">
+            <span id="planNameDisplay"><?= h($plan['name']) ?></span>
 
-<!-- Flash Messages -->
-<?php if (!empty($flash)): ?>
-    <?php foreach ($flash as $type => $messages): ?>
-        <?php foreach ((array)$messages as $message): ?>
-            <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show" role="alert">
-                <?= htmlspecialchars($message) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endforeach; ?>
-    <?php endforeach; ?>
-<?php endif; ?>
+            <?php if ($plan['is_public']): ?>
+                <span class="badge bg-info text-dark fs-6 align-middle">Public</span>
+            <?php endif; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><?= e($plan['name'] ?? 'Meal Plan') ?></h1>
-    <div class="btn-group">
-        <a href="/plans/<?= $plan['id'] ?>/grocery" class="btn btn-outline-primary">Grocery List</a>
-        <a href="/plans/<?= $plan['id'] ?>/prep" class="btn btn-outline-primary">Prep Plan</a>
+            <?php
+            $currentUser = $_SESSION['user'] ?? null;
+            $isOwner = $currentUser && ($currentUser['id'] == $plan['user_id']);
+            ?>
+
+            <?php if ($isOwner): ?>
+                <a href="#" onclick="renamePlan()" class="text-decoration-none text-muted fs-6 align-middle ms-2"
+                    title="Rename Plan">✏️</a>
+
+                <form id="renameForm" action="<?= url('/plans/' . $plan['id'] . '/update') ?>" method="POST"
+                    style="display:none;">
+                    <input type="hidden" name="name" id="newNameInput">
+                </form>
+            <?php endif; ?>
+        </h1>
+        <small class="text-muted d-block mb-3">
+            Created <?= date('M j, Y', strtotime($plan['created_at'])) ?>
+        </small>
+
+        <!-- Social Controls -->
+        <div class="d-flex align-items-center gap-2">
+            <!-- Share Toggle (Owner Only) -->
+            <?php if ($isOwner): ?>
+                <form action="<?= url('/plans/' . $plan['id'] . '/share') ?>" method="POST" class="d-inline" id="shareForm">
+                    <input type="hidden" name="is_public" value="<?= $plan['is_public'] ? 0 : 1 ?>">
+                    <input type="hidden" name="new_name" id="shareNameInput">
+
+                    <button type="button" onclick="confirmShare(<?= $plan['is_public'] ?>)"
+                        class="btn btn-outline-secondary rounded-pill">
+                        <?= $plan['is_public'] ? '🔒 Make Private' : '🌍 Share to Community' ?>
+                    </button>
+                </form>
+            <?php endif; ?>
+
+            <!-- Like Button -->
+            <form action="<?= url('/plans/' . $plan['id'] . '/like') ?>" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger rounded-pill" title="Like this plan">
+                    ❤️ <?= $plan['likes_count'] ?>
+                </button>
+            </form>
+        </div>
     </div>
+    <?php if ($isOwner): ?>
+        <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+            <!-- These buttons will be activated in Module 5 -->
+            <form action="<?= url('/plans/' . $plan['id'] . '/grocery') ?>" method="POST">
+                <button type="submit" class="btn btn-success">
+                    🛒 Grocery List
+                </button>
+            </form>
+            <form action="<?= url('/plans/' . $plan['id'] . '/prep') ?>" method="POST">
+                <button type="submit" class="btn btn-info text-white">
+                    🔪 Prep Plan
+                </button>
+            </form>
+            <form action="<?= url('/plans/' . $plan['id'] . '/delete') ?>" method="POST"
+                onsubmit="return confirm('Are you sure you want to delete this ENTIRE meal plan? This action cannot be undone.');">
+                <button type="submit" class="btn btn-danger">
+                    🗑 Delete
+                </button>
+            </form>
+        </div>
+    <?php endif; ?>
 </div>
 
-<!-- Plan Info -->
-<div class="mb-4">
-    <span class="text-muted">Created <?= date('M j, Y g:ia', strtotime($plan['created_at'])) ?></span>
-    <?php foreach (($plan['meal_types'] ?? []) as $type): ?>
-        <span class="badge <?= mealTypeBadgeClass($type) ?> ms-2"><?= formatMealType($type) ?></span>
-    <?php endforeach; ?>
-</div>
+<div class="row">
+    <!-- Recipes Column -->
+    <div class="col-lg-8">
+        <h4 class="mb-3">Selected Recipes</h4>
+        <?php if (empty($plan['plan_recipes'])): ?>
+            <p>No recipes in this plan.</p>
+        <?php else: ?>
+            <?php if ($isOwner): ?>
+                <form action="<?= url('/plans/' . $plan['id'] . '/swap') ?>" method="POST" id="swapForm">
+                    <input type="hidden" name="catalog_id" id="hiddenCatalogId" value="">
 
-<!-- Recipe List -->
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">Recipes (<?= count($plan['recipes'] ?? []) ?>)</h5>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Recipe</th>
-                    <th>Type</th>
-                    <th>Prep Time</th>
-                    <th>Serves</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="recipe-list">
-                <?php foreach (($plan['recipes'] ?? []) as $index => $recipe): ?>
-                    <tr id="recipe-row-<?= $recipe['id'] ?>">
-                        <td><?= $index + 1 ?></td>
-                        <td>
-                            <a href="/recipes/<?= $recipe['id'] ?>">
-                                <strong><?= e($recipe['name']) ?></strong>
-                            </a>
-                            <?php if (!empty($recipe['chapter'])): ?>
-                                <br><small class="text-muted"><?= e($recipe['chapter']) ?></small>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <span class="badge <?= mealTypeBadgeClass($recipe['meal_type'] ?? 'any') ?>">
-                                <?= formatMealType($recipe['meal_type'] ?? 'any') ?>
-                            </span>
-                        </td>
-                        <td><?= formatTime($recipe['prep_time'] ?? null) ?></td>
-                        <td><?= e($recipe['serves'] ?? '-') ?></td>
-                        <td>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    hx-post="/plans/<?= $plan['id'] ?>/reroll/<?= $recipe['id'] ?>"
-                                    hx-target="#recipe-row-<?= $recipe['id'] ?>"
-                                    hx-swap="outerHTML"
-                                    title="Replace with a different recipe">
-                                Reroll
+                    <!-- Unified Toolbar -->
+                    <div class="card bg-light border-0 mb-3 p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <!-- LEFT: Add Actions -->
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                    ➕ Add Recipe
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" href="<?= url('/recipes?add_to_plan=' . $plan['id']) ?>">
+                                            🔍 Browse & Add...
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        <button type="submit" formaction="<?= url('/plans/' . $plan['id'] . '/add') ?>"
+                                            name="random" value="true" class="dropdown-item">
+                                            🎲 Add Random Surprise
+                                        </button>
+                                    </li>
+                                    <?php if (!empty($catalogs)): ?>
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        <li>
+                                            <h6 class="dropdown-header">📖 Add From Catalog</h6>
+                                        </li>
+                                        <?php foreach ($catalogs as $cat): ?>
+                                            <li>
+                                                <button type="submit" formaction="<?= url('/plans/' . $plan['id'] . '/add') ?>"
+                                                    name="random" value="true" class="dropdown-item"
+                                                    onclick="this.form.catalog_id.value='<?= $cat['id'] ?>';">
+                                                    <?= h($cat['name']) ?>
+                                                </button>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </ul>
+                            </div>
+
+                            <!-- RIGHT: Selection Actions -->
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted d-none d-md-block me-2">Selected:</small>
+
+                                <!-- Swap Dropdown -->
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-outline-primary dropdown-toggle"
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                        🔁 Swap
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <button type="submit" name="mode" value="similar" class="dropdown-item">
+                                                ✨ Swap Similar
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="submit" name="mode" value="random" class="dropdown-item">
+                                                🎲 Swap Random
+                                            </button>
+                                        </li>
+                                        <?php if (!empty($catalogs)): ?>
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                            <li>
+                                                <h6 class="dropdown-header">📖 Swap Using Catalog</h6>
+                                            </li>
+                                            <?php foreach ($catalogs as $cat): ?>
+                                                <li>
+                                                    <button type="submit" name="mode" value="catalog" class="dropdown-item"
+                                                        onclick="document.getElementById('hiddenCatalogId').value='<?= $cat['id'] ?>'">
+                                                        <?= h($cat['name']) ?>
+                                                    </button>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </ul>
+                                </div>
+
+                                <!-- Remove Button -->
+                                <button type="submit" formaction="<?= url('/plans/' . $plan['id'] . '/remove') ?>"
+                                    class="btn btn-outline-danger" title="Remove selected recipes">
+                                    🗑 Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="list-group shadow-sm mb-5">
+                        <?php foreach ($plan['plan_recipes'] as $pr):
+                            $recipe = $pr['recipe']; // Nested object from API
+                            ?>
+                            <label class="list-group-item list-group-item-action p-3 d-flex gap-3 align-items-center"
+                                style="cursor: pointer;">
+                                <input class="form-check-input flex-shrink-0" type="checkbox" name="recipe_ids[]"
+                                    value="<?= $recipe['id'] ?>" style="font-size: 1.3em;">
+
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-1">
+                                            <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id']) ?>"
+                                                class="text-decoration-none text-dark">
+                                                <?= h($recipe['name']) ?>
+                                            </a>
+                                        </h5>
+                                        <div class="text-muted small">
+                                            <span
+                                                class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
+                                            Using: <?= h($recipe['dish_role']) ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </form>
+            <?php else: ?>
+                <div class="alert alert-light border shadow-sm mb-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <strong>Want to customize this plan?</strong>
+                            <p class="mb-0 text-muted">Fork this plan to your account to add or swap recipes.</p>
+                        </div>
+                        <form action="<?= url('/plans/' . $plan['id'] . '/clone') ?>" method="POST">
+                            <button type="submit" class="btn btn-primary">
+                                🔱 Copy to My Plans
                             </button>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="list-group shadow-sm mb-5">
+                    <?php foreach ($plan['plan_recipes'] as $pr):
+                        $recipe = $pr['recipe'];
+                        ?>
+                        <div class="list-group-item p-3 d-flex gap-3 align-items-center">
+                            <!-- No Checkbox for non-owners -->
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">
+                                        <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id']) ?>"
+                                            class="text-decoration-none text-dark">
+                                            <?= h($recipe['name']) ?>
+                                        </a>
+                                    </h5>
+                                    <div class="text-muted small">
+                                        <span class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
+                                        Using: <?= h($recipe['dish_role']) ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+
+    <!-- AI Output Column (Placeholders for Module 5) -->
+    <div class="col-lg-4">
+        <?php if (!empty($plan['grocery_list'])): ?>
+            <div class="card shadow-sm mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    🛒 Grocery List (Ready)
+                </div>
+                <div class="card-body">
+                    <pre class="small mb-0"
+                        style="white-space: pre-wrap; font-family: inherit;"><?= h($plan['grocery_list']['content'] ?? 'Error loading content') ?></pre>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($plan['prep_plan'])): ?>
+            <div class="card shadow-sm border-info">
+                <div class="card-header bg-info text-white">
+                    🔪 Prep Plan (Ready)
+                </div>
+                <div class="card-body">
+                    <pre class="small mb-0"
+                        style="white-space: pre-wrap; font-family: inherit;"><?= h($plan['prep_plan']['content'] ?? 'Error loading content') ?></pre>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div class="alert alert-light border">
+            <h5>💡 Plan Stats</h5>
+            <ul class="list-unstyled mb-0">
+                <li><strong>Meals:</strong> <?= $plan['recipe_count'] ?></li>
+                <li><strong>Types:</strong> <?= implode(', ', array_map('ucfirst', $plan['meal_types'] ?? [])) ?></li>
+            </ul>
+        </div>
+
+
     </div>
 </div>
 
-<!-- Actions -->
-<div class="mt-4">
-    <button type="button"
-            class="btn btn-outline-danger"
-            hx-delete="/plans/<?= $plan['id'] ?>"
-            hx-confirm="Delete this meal plan?"
-            hx-redirect="/plans">
-        Delete Plan
-    </button>
-</div>
+<script>
+    function renamePlan() {
+        const currentName = document.getElementById('planNameDisplay').innerText;
+        const newName = prompt("Rename your meal plan:", currentName);
+
+        if (newName && newName.trim() !== "" && newName !== currentName) {
+            document.getElementById('newNameInput').value = newName;
+            document.getElementById('renameForm').submit();
+        }
+    }
+
+    function confirmShare(isWaitPrivate) {
+        const form = document.getElementById('shareForm');
+
+        if (isWaitPrivate) {
+            // Currently Public -> Making Private
+            if (confirm("Are you sure you want to make this plan private? It will disappear from the Community page.")) {
+                form.submit();
+            }
+        } else {
+            // Currently Private -> Making Public
+            const currentName = document.getElementById('planNameDisplay').innerText;
+            const publicName = prompt("You are sharing this to the community! \n\nEnter a unique name for your plan (or keep as is):", currentName);
+
+            if (publicName !== null) {
+                // If user clicked OK (even if empty, though we should fallback)
+                const finalName = publicName.trim() === "" ? currentName : publicName;
+                document.getElementById('shareNameInput').value = finalName;
+                form.submit();
+            }
+        }
+    }
+</script>

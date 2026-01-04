@@ -1,240 +1,113 @@
-"""
-Catalog API router
-Handles catalog listing and import operations
-"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from typing import List
-import json
-from pathlib import Path
+import os
 
-from database import get_db
-from models.schemas import (
-    CatalogList,
-    CatalogListResponse,
-    CatalogImportRequest,
-    CatalogImportResponse,
+from api.database import get_db
+from api.models import orm
+from api import schemas
+from scripts.import_catalog import import_catalog
+
+router = APIRouter(
+    prefix="/api/catalogs",
+    tags=["catalogs"]
 )
 
-router = APIRouter()
+@router.get("/", response_model=List[schemas.Catalog])
+def read_catalogs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """List all catalogs."""
+    catalogs = db.query(orm.Catalog).offset(skip).limit(limit).all()
+    return catalogs
 
-
-@router.get("", response_model=CatalogListResponse)
-async def list_catalogs(db: Session = Depends(get_db)):
-    """List all imported catalogs"""
-    result = db.execute(
-        text("""
-            SELECT id, name, source_folder, model_used, recipe_count, created_at
-            FROM catalogs
-            ORDER BY created_at DESC
-        """)
-    )
-
-    catalogs = []
-    for row in result.mappings():
-        catalogs.append(CatalogList(
-            id=row["id"],
-            name=row["name"],
-            source_folder=row["source_folder"],
-            model_used=row["model_used"],
-            recipe_count=row["recipe_count"] or 0,
-            created_at=row["created_at"],
-        ))
-
-    return CatalogListResponse(catalogs=catalogs)
-
-
-@router.get("/{catalog_id}", response_model=CatalogList)
-async def get_catalog(catalog_id: int, db: Session = Depends(get_db)):
-    """Get a single catalog by ID"""
-    result = db.execute(
-        text("""
-            SELECT id, name, source_folder, model_used, recipe_count, created_at
-            FROM catalogs WHERE id = :id
-        """),
-        {"id": catalog_id}
-    )
-
-    row = result.mappings().first()
-    if not row:
+@router.get("/{catalog_id}", response_model=schemas.Catalog)
+def read_catalog(catalog_id: int, db: Session = Depends(get_db)):
+    """Get a specific catalog by ID."""
+    catalog = db.query(orm.Catalog).filter(orm.Catalog.id == catalog_id).first()
+    if catalog is None:
         raise HTTPException(status_code=404, detail="Catalog not found")
+    return catalog
 
-    return CatalogList(
-        id=row["id"],
-        name=row["name"],
-        source_folder=row["source_folder"],
-        model_used=row["model_used"],
-        recipe_count=row["recipe_count"] or 0,
-        created_at=row["created_at"],
-    )
-
-
-@router.post("/import", response_model=CatalogImportResponse)
-async def import_catalog(request: CatalogImportRequest, db: Session = Depends(get_db)):
+@router.post("/import")
+def import_catalog_endpoint(
+    file: UploadFile = File(...), 
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db)
+):
     """
-    Import a JSON catalog file into the database.
-
-    The file_path should point to a JSON file created by recipe_cataloger.py
+    Import a catalog from an uploaded JSON file.
     """
-    file_path = Path(request.file_path)
+    # Ensure upload directory exists
+    upload_dir = "data/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = os.path.join(upload_dir, file.filename)
+    
+    with open(file_path, "wb") as buffer:
+        import shutil
+        shutil.copyfileobj(file.file, buffer)
+        
+    background_tasks.add_task(import_catalog_task, file_path)
+    
+    return {"message": "Import started in background", "file": file.filename}
 
-    if not file_path.exists():
-        raise HTTPException(status_code=400, detail=f"File not found: {request.file_path}")
-
-    if not file_path.suffix.lower() == ".json":
-        raise HTTPException(status_code=400, detail="File must be a JSON file")
-
+def import_catalog_task(file_path: str):
+    # Create a fresh session for the background thread
+    from api.database import SessionLocal
+    db = SessionLocal()
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+        import_catalog(file_path, db)
+    finally:
+        db.close()
 
-    # Extract data
-    metadata = data.get("metadata", {})
-    recipes = data.get("recipes", [])
-    chapters = data.get("chapters", [])
+@router.put("/{catalog_id}", response_model=schemas.Catalog)
+def update_catalog(catalog_id: int, catalog_update: schemas.CatalogUpdate, db: Session = Depends(get_db)):
+    """Update a catalog name."""
+    catalog = db.query(orm.Catalog).filter(orm.Catalog.id == catalog_id).first()
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Catalog not found")
+    
+    if catalog_update.name:
+        catalog.name = catalog_update.name
+    
+    db.commit()
+    db.refresh(catalog)
+    return catalog
 
-    catalog_name = request.name or file_path.stem.replace("_", " ").title()
-
-    stats = {
-        "success": True,
-        "catalog_name": catalog_name,
-        "recipes_imported": 0,
-        "chapters_imported": 0,
-        "ingredients_imported": 0,
-        "skipped": 0,
-        "errors": [],
+@router.delete("/{catalog_id}")
+def delete_catalog(catalog_id: int, db: Session = Depends(get_db)):
+    """Delete a catalog and all its recipes."""
+    catalog = db.query(orm.Catalog).filter(orm.Catalog.id == catalog_id).first()
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Catalog not found")
+    
+    # Smart Cleanup Strategy:
+    # 1. Iterate all recipes in this catalog.
+    # 2. If recipe is used in ANY meal plan -> Keep it, but set catalog_id = None (Archive).
+    # 3. If recipe is NOT used -> Delete it (Garbage Collection).
+    
+    deleted_count = 0
+    archived_count = 0
+    
+    # We must iterate a copy of the list because we are modifying it (deleting/unlinking)
+    # Actually, iterating the relationship is fine, but deleting from db might affect iteration if not careful.
+    # Safer to fetch list first.
+    recipes = list(catalog.recipes)
+    
+    for recipe in recipes:
+        # Check usage
+        # Note: 'meal_plan_links' is the relationship to MealPlanRecipe
+        if recipe.meal_plan_links: 
+             recipe.catalog_id = None # Archive / Orphan
+             archived_count += 1
+        else:
+             db.delete(recipe) # Garbage Collect
+             deleted_count += 1
+             
+    db.delete(catalog)
+    db.commit()
+    
+    return {
+        "status": "success", 
+        "message": f"Catalog deleted. {deleted_count} recipes purged, {archived_count} archived."
     }
-
-    try:
-        # Insert catalog
-        result = db.execute(
-            text("""
-                INSERT INTO catalogs (name, source_folder, model_used, recipe_count, metadata)
-                VALUES (:name, :source_folder, :model_used, :recipe_count, :metadata)
-            """),
-            {
-                "name": catalog_name,
-                "source_folder": metadata.get("source_folder", str(file_path.parent)),
-                "model_used": metadata.get("model_used", "unknown"),
-                "recipe_count": len(recipes),
-                "metadata": json.dumps(metadata),
-            }
-        )
-        catalog_id = result.lastrowid
-        stats["catalog_id"] = catalog_id
-
-        # Import chapters
-        for chapter in chapters:
-            db.execute(
-                text("""
-                    INSERT INTO chapters (catalog_id, chapter_number, chapter_title, recipe_list)
-                    VALUES (:catalog_id, :chapter_number, :chapter_title, :recipe_list)
-                """),
-                {
-                    "catalog_id": catalog_id,
-                    "chapter_number": chapter.get("chapter_number"),
-                    "chapter_title": chapter.get("chapter_title"),
-                    "recipe_list": json.dumps(chapter.get("recipe_list", [])),
-                }
-            )
-            stats["chapters_imported"] += 1
-
-        # Import recipes
-        for recipe in recipes:
-            try:
-                recipe_id = _import_recipe(db, catalog_id, recipe)
-                stats["recipes_imported"] += 1
-
-                # Import ingredients
-                ingredients = recipe.get("ingredients", [])
-                for idx, ingredient in enumerate(ingredients):
-                    ingredient_text = ingredient if isinstance(ingredient, str) else str(ingredient)
-                    db.execute(
-                        text("""
-                            INSERT INTO ingredients (recipe_id, ingredient_text, sort_order)
-                            VALUES (:recipe_id, :ingredient_text, :sort_order)
-                        """),
-                        {
-                            "recipe_id": recipe_id,
-                            "ingredient_text": ingredient_text,
-                            "sort_order": idx,
-                        }
-                    )
-                    stats["ingredients_imported"] += 1
-
-            except Exception as e:
-                stats["errors"].append(f"Recipe '{recipe.get('name', 'unknown')}': {str(e)}")
-                stats["skipped"] += 1
-
-        db.commit()
-
-    except Exception as e:
-        db.rollback()
-        stats["success"] = False
-        stats["errors"].append(str(e))
-        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
-
-    return CatalogImportResponse(**stats)
-
-
-def _import_recipe(db: Session, catalog_id: int, recipe: dict) -> int:
-    """Import a single recipe and return its ID."""
-
-    # Normalize meal_type
-    meal_type = recipe.get("meal_type", "any")
-    if meal_type not in ("breakfast", "lunch", "dinner", "dessert", "snack", "any"):
-        meal_type = "any"
-
-    # Normalize dish_role
-    dish_role = recipe.get("dish_role", "main")
-    if dish_role not in ("main", "side", "sub_recipe"):
-        dish_role = "main"
-
-    result = db.execute(
-        text("""
-            INSERT INTO recipes (
-                catalog_id, name, chapter, chapter_number, page_number,
-                meal_type, dish_role, serves, prep_time, cook_time, total_time,
-                calories, protein, carbs, fat, nutrition_full,
-                description, instructions, tips, sub_recipes, dietary_info,
-                is_complete, source_images
-            ) VALUES (
-                :catalog_id, :name, :chapter, :chapter_number, :page_number,
-                :meal_type, :dish_role, :serves, :prep_time, :cook_time, :total_time,
-                :calories, :protein, :carbs, :fat, :nutrition_full,
-                :description, :instructions, :tips, :sub_recipes, :dietary_info,
-                :is_complete, :source_images
-            )
-        """),
-        {
-            "catalog_id": catalog_id,
-            "name": recipe.get("name", "Untitled"),
-            "chapter": recipe.get("chapter"),
-            "chapter_number": recipe.get("chapter_number"),
-            "page_number": str(recipe.get("page_number", "")) if recipe.get("page_number") else None,
-            "meal_type": meal_type,
-            "dish_role": dish_role,
-            "serves": recipe.get("serves"),
-            "prep_time": recipe.get("prep_time"),
-            "cook_time": recipe.get("cook_time"),
-            "total_time": recipe.get("total_time"),
-            "calories": recipe.get("calories"),
-            "protein": recipe.get("protein"),
-            "carbs": recipe.get("carbs"),
-            "fat": recipe.get("fat"),
-            "nutrition_full": recipe.get("nutrition_full"),
-            "description": recipe.get("description"),
-            "instructions": json.dumps(recipe.get("instructions", [])),
-            "tips": json.dumps(recipe.get("tips", [])),
-            "sub_recipes": json.dumps(recipe.get("sub_recipes", [])),
-            "dietary_info": json.dumps(recipe.get("dietary_info", [])),
-            "is_complete": recipe.get("is_complete", True),
-            "source_images": json.dumps(recipe.get("source_images", [recipe.get("source_image")])),
-        }
-    )
-
-    return result.lastrowid

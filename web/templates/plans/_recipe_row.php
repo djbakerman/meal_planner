@@ -7,7 +7,7 @@ $index = $position ?? 0;
 <tr id="recipe-row-<?= $recipe['id'] ?>">
     <td><?= $index + 1 ?></td>
     <td>
-        <a href="/recipes/<?= $recipe['id'] ?>">
+        <a href="<?= url('/recipes/' . $recipe['id']) ?>">
             <strong><?= e($recipe['name']) ?></strong>
         </a>
         <?php if (!empty($recipe['chapter'])): ?>
@@ -22,12 +22,9 @@ $index = $position ?? 0;
     <td><?= formatTime($recipe['prep_time'] ?? null) ?></td>
     <td><?= e($recipe['serves'] ?? '-') ?></td>
     <td>
-        <button type="button"
-                class="btn btn-sm btn-outline-secondary"
-                hx-post="/plans/<?= $planId ?>/reroll/<?= $recipe['id'] ?>"
-                hx-target="#recipe-row-<?= $recipe['id'] ?>"
-                hx-swap="outerHTML"
-                title="Replace with a different recipe">
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+            hx-post="/plans/<?= $planId ?>/reroll/<?= $recipe['id'] ?>" hx-target="#recipe-row-<?= $recipe['id'] ?>"
+            hx-swap="outerHTML" title="Replace with a different recipe">
             Reroll
         </button>
     </td>

@@ -1,50 +1,40 @@
-"""
-Database configuration and session management
-Uses SQLAlchemy with MariaDB/MySQL
-"""
 
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+import os
 
-# Load environment variables
-load_dotenv()
+# Database URL - default to local MariaDB/MySQL
+# Format: mysql+pymysql://user:password@host:port/dbname
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Database connection settings
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "3306")
-DB_NAME = os.getenv("DB_DATABASE", "meal_planner")
-DB_USER = os.getenv("DB_USERNAME", "root")
-DB_PASS = os.getenv("DB_PASSWORD", "")
+if not DATABASE_URL:
+    # Try to construct from individual DB_ vars (common in PHP/Laravel setups)
+    host = os.environ.get("DB_HOST", "localhost")
+    user = os.environ.get("DB_USERNAME", "mealplanner")
+    password = os.environ.get("DB_PASSWORD", "mealplanner")
+    db_name = os.environ.get("DB_DATABASE", "meal_planner")
+    port = os.environ.get("DB_PORT", "3306")
+    socket = os.environ.get("DB_SOCKET") # Custom one usually not in std env but logical to add
 
-# Build database URL for MariaDB/MySQL
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    if socket:
+         DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}/{db_name}?unix_socket={socket}"
+    else:
+         DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
 
-# Create SQLAlchemy engine
+SQLALCHEMY_DATABASE_URL = DATABASE_URL
+print(f"DEBUG: database.py using URL: {SQLALCHEMY_DATABASE_URL}")
+
 engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using
-    pool_recycle=3600,   # Recycle connections after 1 hour
-    echo=False,          # Set True for SQL logging during development
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True
 )
 
-# Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for models
 Base = declarative_base()
 
-
 def get_db():
-    """
-    Dependency function to get database session
-    Usage in FastAPI:
-        @app.get("/items")
-        def get_items(db: Session = Depends(get_db)):
-            ...
-    """
     db = SessionLocal()
     try:
         yield db

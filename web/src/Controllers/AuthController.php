@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace MealPlanner\Controllers;
+namespace App\Controllers;
 
-use MealPlanner\Services\ApiClient;
-use MealPlanner\Services\SessionService;
+use App\Services\ApiClient;
+use App\Services\SessionService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\PhpRenderer;
@@ -16,7 +16,8 @@ class AuthController
         private PhpRenderer $view,
         private ApiClient $apiClient,
         private SessionService $session
-    ) {}
+    ) {
+    }
 
     /**
      * Show login form
@@ -25,12 +26,12 @@ class AuthController
     {
         // Redirect if already logged in
         if ($this->session->get('user')) {
-            return $response->withHeader('Location', '/')->withStatus(302);
+            return $response->withHeader('Location', url('/'))->withStatus(302);
         }
 
+        $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'auth/login.php', [
             'title' => 'Login - Meal Planner',
-            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -45,7 +46,7 @@ class AuthController
 
         if (empty($email) || empty($password)) {
             $this->session->flash('error', 'Please enter email and password.');
-            return $response->withHeader('Location', '/login')->withStatus(302);
+            return $response->withHeader('Location', url('/login'))->withStatus(302);
         }
 
         $result = $this->apiClient->post('api/auth/login', [
@@ -56,7 +57,7 @@ class AuthController
         if (isset($result['error']) || !isset($result['success']) || !$result['success']) {
             $error = $result['detail'] ?? $result['error'] ?? 'Invalid email or password.';
             $this->session->flash('error', $error);
-            return $response->withHeader('Location', '/login')->withStatus(302);
+            return $response->withHeader('Location', url('/login'))->withStatus(302);
         }
 
         // Store user in session
@@ -77,12 +78,12 @@ class AuthController
     {
         // Redirect if already logged in
         if ($this->session->get('user')) {
-            return $response->withHeader('Location', '/')->withStatus(302);
+            return $response->withHeader('Location', url('/'))->withStatus(302);
         }
 
+        $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'auth/register.php', [
             'title' => 'Register - Meal Planner',
-            'flash' => $this->session->getFlash(),
         ]);
     }
 
@@ -100,7 +101,7 @@ class AuthController
         // Validation
         if (empty($username) || empty($email) || empty($password)) {
             $this->session->flash('error', 'All fields are required.');
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         if (strlen($username) < 3) {
@@ -139,7 +140,7 @@ class AuthController
         $this->session->set('user', $result['user']);
         $this->session->flash('success', 'Welcome to Meal Planner, ' . $result['user']['username'] . '!');
 
-        return $response->withHeader('Location', '/')->withStatus(302);
+        return $response->withHeader('Location', url('/'))->withStatus(302);
     }
 
     /**
@@ -150,6 +151,89 @@ class AuthController
         $this->session->remove('user');
         $this->session->flash('success', 'You have been logged out.');
 
-        return $response->withHeader('Location', '/login')->withStatus(302);
+        return $response->withHeader('Location', url('/login'))->withStatus(302);
+    }
+    /**
+     * Google Login Start
+     */
+    public function googleLogin(Request $request, Response $response): Response
+    {
+        $clientId = $_ENV['GOOGLE_CLIENT_ID'] ?? '';
+        $redirectUri = $_ENV['GOOGLE_REDIRECT_URI'] ?? 'https://fiberdan.com/meal-planner/redirect';
+
+        // Scope for getting email and profile
+        $scope = urlencode('https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
+
+        $authUrl = "https://accounts.google.com/o/oauth2/auth?redirect_uri={$redirectUri}&response_type=code&client_id={$clientId}&scope={$scope}&access_type=offline&prompt=consent";
+
+        return $response->withHeader('Location', $authUrl)->withStatus(302);
+    }
+
+    /**
+     * Google Login Callback
+     */
+    public function googleCallback(Request $request, Response $response): Response
+    {
+        $params = $request->getQueryParams();
+        $code = $params['code'] ?? null;
+
+        if (!$code) {
+            $this->session->flash('error', 'Google login failed: No code returned.');
+            return $response->withHeader('Location', url('/login'))->withStatus(302);
+        }
+
+        $clientId = $_ENV['GOOGLE_CLIENT_ID'] ?? '';
+        $clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? '';
+        $redirectUri = $_ENV['GOOGLE_REDIRECT_URI'] ?? 'https://fiberdan.com/meal-planner/redirect';
+
+        $client = new \GuzzleHttp\Client();
+
+        try {
+            // 1. Exchange Code for Token
+            $tokenResponse = $client->post('https://oauth2.googleapis.com/token', [
+                'form_params' => [
+                    'code' => $code,
+                    'client_id' => $clientId,
+                    'client_secret' => $clientSecret,
+                    'redirect_uri' => $redirectUri,
+                    'grant_type' => 'authorization_code'
+                ]
+            ]);
+
+            $tokenData = json_decode($tokenResponse->getBody()->getContents(), true);
+            $accessToken = $tokenData['access_token'];
+
+            // 2. Get User Info
+            $userResponse = $client->get('https://www.googleapis.com/oauth2/v2/userinfo', [
+                'headers' => [
+                    'Authorization' => "Bearer {$accessToken}"
+                ]
+            ]);
+
+            $googleUser = json_decode($userResponse->getBody()->getContents(), true);
+
+            // 3. Login/Register in API
+            $result = $this->apiClient->post('api/auth/oauth-login', [
+                'email' => $googleUser['email'],
+                'google_id' => $googleUser['id'],
+                'name' => $googleUser['name'] ?? null,
+                'avatar_url' => $googleUser['picture'] ?? null
+            ]);
+
+            if (isset($result['error']) || !isset($result['success']) || !$result['success']) {
+                $error = $result['error'] ?? 'Login failed.';
+                $this->session->flash('error', $error);
+                return $response->withHeader('Location', url('/login'))->withStatus(302);
+            }
+
+            // 4. Success
+            $this->session->set('user', $result['user']);
+            $this->session->flash('success', "Welcome, {$result['user']['username']}!");
+            return $response->withHeader('Location', url('/'))->withStatus(302);
+
+        } catch (\Exception $e) {
+            $this->session->flash('error', 'Google login error: ' . $e->getMessage());
+            return $response->withHeader('Location', url('/login'))->withStatus(302);
+        }
     }
 }

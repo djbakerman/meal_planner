@@ -21,215 +21,25 @@ from datetime import datetime
 import requests
 from typing import Optional, List, Dict, Any
 
-# API endpoints
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
-
-# Claude models with vision support
-CLAUDE_VISION_MODELS = [
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-opus-20240229",
-    "claude-3-sonnet-20240229",
-    "claude-3-haiku-20240307"
-]
-
-# Try to import PIL for image preprocessing
-try:
-    from PIL import Image, ImageEnhance, ImageFilter
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from backend import config, llm, image as img_utils
 
 
 def preprocess_image_for_text(image_path: str) -> Optional[str]:
-    """
-    Preprocess image to enhance text readability for vision models.
-    Returns path to temporary processed image, or None if preprocessing unavailable.
-    
-    Techniques:
-    - Increase contrast to make text stand out
-    - Slight sharpening to crisp up text edges
-    """
-    if not PIL_AVAILABLE:
-        return None
-    
-    try:
-        img = Image.open(image_path)
-        
-        # Convert to RGB if necessary
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        
-        # Increase contrast - helps text stand out from photos
-        contrast = ImageEnhance.Contrast(img)
-        img = contrast.enhance(1.3)  # 30% more contrast
-        
-        # Slight sharpening - crisps up text
-        img = img.filter(ImageFilter.SHARPEN)
-        
-        # Save to temp file
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.png')
-        os.close(temp_fd)
-        img.save(temp_path, 'PNG')
-        
-        return temp_path
-    except Exception as e:
-        print(f"  ⚠️ Image preprocessing failed: {e}")
-        return None
+    """Delegate to backend."""
+    return img_utils.preprocess_image_for_text(image_path)
 
 
-def encode_image_to_base64(image_path: str) -> str:
-    """Encode an image file to base64 string."""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
-
-
-def get_image_media_type(image_path: str) -> str:
-    """Get the media type for an image based on extension."""
-    ext = Path(image_path).suffix.lower()
-    media_types = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp'
-    }
-    return media_types.get(ext, 'image/png')
-
-
-def analyze_image_with_claude(image_path: str, prompt: str, model: str, api_key: str) -> Optional[str]:
-    """
-    Send an image to Claude API for analysis.
-    
-    Args:
-        image_path: Path to the image file
-        prompt: The prompt/question to ask about the image
-        model: Claude model to use (e.g., claude-sonnet-4-20250514)
-        api_key: Anthropic API key
-    
-    Returns:
-        Model's response as string, or None if failed
-    """
-    image_base64 = encode_image_to_base64(image_path)
-    media_type = get_image_media_type(image_path)
-    
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01"
-    }
-    
-    payload = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_base64
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-    
-    try:
-        response = requests.post(CLAUDE_API_URL, headers=headers, json=payload, timeout=120)
-        response.raise_for_status()
-        result = response.json()
-        
-        # Extract text from response
-        content = result.get("content", [])
-        if content and len(content) > 0:
-            return content[0].get("text", "")
-        return None
-        
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 401:
-            print("Error: Invalid Claude API key")
-        elif e.response.status_code == 429:
-            print("Error: Claude API rate limit exceeded")
-        else:
-            print(f"Error: Claude API returned {e.response.status_code}: {e.response.text[:200]}")
-        return None
-    except requests.exceptions.Timeout:
-        print(f"Error: Request timed out for {image_path}")
-        return None
-    except Exception as e:
-        print(f"Error analyzing {image_path} with Claude: {e}")
-        return None
-
-
-def analyze_image_with_ollama(image_path: str, prompt: str, model: str = "llava") -> Optional[str]:
-    """
-    Send an image to Ollama vision model for analysis.
-    
-    Args:
-        image_path: Path to the image file
-        prompt: The prompt/question to ask about the image
-        model: Ollama model to use (default: llava, alternatives: llava:13b, bakllava)
-    
-    Returns:
-        Model's response as string, or None if failed
-    """
-    image_base64 = encode_image_to_base64(image_path)
-    
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "images": [image_base64],
-        "stream": False,
-        "options": {
-            "temperature": 0.1,  # Low temperature for more consistent extraction
-            "num_predict": 4096  # Allow longer responses for full recipes
-        }
-    }
-    
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
-        response.raise_for_status()
-        return response.json().get("response", "")
-    except requests.exceptions.ConnectionError:
-        print(f"Error: Cannot connect to Ollama at {OLLAMA_API_URL}")
-        print("Make sure Ollama is running: ollama serve")
-        return None
-    except requests.exceptions.Timeout:
-        print(f"Error: Request timed out for {image_path}")
-        return None
-    except Exception as e:
-        print(f"Error analyzing {image_path}: {e}")
-        return None
+# Helper functions delegated to backend
+# encode_image_to_base64 and get_image_media_type removed, used directly from img_utils or inside analyze_image
 
 
 def analyze_image(image_path: str, prompt: str, model: str, api_key: str = None, 
                   backup_model: str = None) -> Optional[str]:
     """
     Analyze an image using either Claude API or Ollama based on the model name.
-    
-    Args:
-        image_path: Path to the image file
-        prompt: The prompt/question to ask about the image
-        model: Model to use (Claude model name or Ollama model name)
-        api_key: Anthropic API key (required for Claude models)
-        backup_model: Fallback model for files > 5MB (Claude's limit)
-    
-    Returns:
-        Model's response as string, or None if failed
     """
     # Check if it's a Claude model
-    is_claude = any(claude_model in model for claude_model in CLAUDE_VISION_MODELS) or model.startswith("claude-")
+    is_claude = llm.is_claude_model(model)
     
     if is_claude:
         if not api_key:
@@ -237,44 +47,49 @@ def analyze_image(image_path: str, prompt: str, model: str, api_key: str = None,
             return None
         
         # Check file size - Claude has 5MB limit on the BASE64 encoded image
-        # Base64 encoding increases size by ~33%, so we need to check accordingly
         file_size = os.path.getsize(image_path)
-        # Base64 encoded size ≈ file_size * 4/3
+        # Base64 encoded size approx file_size * 4/3
         estimated_base64_size = int(file_size * 4 / 3)
         max_size = 5 * 1024 * 1024  # 5MB in bytes
         
         if estimated_base64_size >= max_size:
             if backup_model:
                 print(f"  ⚠️  File too large for Claude ({file_size / 1024 / 1024:.1f}MB -> ~{estimated_base64_size / 1024 / 1024:.1f}MB base64), using backup model: {backup_model}")
-                return analyze_image_with_ollama(image_path, prompt, backup_model)
+                # Fallback to Ollama
+                try:
+                    image_b64 = img_utils.encode_image_to_base64(image_path)
+                    return llm.query_ollama(prompt, backup_model, images=[image_b64])
+                except Exception as e:
+                    print(f"Error encoding image for backup model: {e}")
+                    return None
             else:
                 print(f"  ⚠️  File too large for Claude ({file_size / 1024 / 1024:.1f}MB -> ~{estimated_base64_size / 1024 / 1024:.1f}MB base64). Use --backup-model to specify fallback.")
                 return None
         
-        return analyze_image_with_claude(image_path, prompt, model, api_key)
+        # Encode image for Claude
+        try:
+            image_b64 = img_utils.encode_image_to_base64(image_path)
+            media_type = img_utils.get_image_media_type(image_path)
+            images = [{"media_type": media_type, "data": image_b64}]
+            
+            return llm.query_claude(prompt, model, api_key, images=images)
+        except Exception as e:
+            print(f"Error preparing image for Claude: {e}")
+            return None
+            
     else:
-        return analyze_image_with_ollama(image_path, prompt, model)
+        # Use Ollama
+        try:
+            image_b64 = img_utils.encode_image_to_base64(image_path)
+            return llm.query_ollama(prompt, model, images=[image_b64])
+        except Exception as e:
+            print(f"Error preparing image for Ollama: {e}")
+            return None
 
 
 def parse_json_response(response: str) -> Optional[dict]:
-    """Safely parse JSON from model response, handling markdown code blocks."""
-    if not response:
-        return None
-    
-    json_str = response.strip()
-    
-    # Handle markdown code blocks
-    if "```json" in json_str:
-        json_str = json_str.split("```json")[1].split("```")[0]
-    elif "```" in json_str:
-        parts = json_str.split("```")
-        if len(parts) >= 2:
-            json_str = parts[1]
-    
-    try:
-        return json.loads(json_str.strip())
-    except json.JSONDecodeError:
-        return None
+    """Safely parse JSON from model response."""
+    return llm.parse_json_response(response)
 
 
 def analyze_extraction_failure(image_path: str, model: str, api_key: str, 
@@ -794,9 +609,9 @@ READ ALL THE TEXT CAREFULLY - don't let the photo distract you. Respond with ONL
                             return best_result
     
     # If no recipes found, try with preprocessed image (enhanced contrast/sharpness)
-    if not best_result.get("recipes") and PIL_AVAILABLE:
+    if not best_result.get("recipes") and img_utils.PIL_AVAILABLE:
         print("  🔄 Retrying with enhanced image preprocessing...")
-        preprocessed_path = preprocess_image_for_text(image_path)
+        preprocessed_path = img_utils.preprocess_image_for_text(image_path)
         
         if preprocessed_path:
             try:

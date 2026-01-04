@@ -1,7 +1,7 @@
 <nav aria-label="breadcrumb" class="mb-4">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/plans">Meal Plans</a></li>
-        <li class="breadcrumb-item"><a href="/plans/<?= $planId ?>">Plan</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('/plans') ?>">Meal Plans</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('/plans/' . $planId) ?>">Plan</a></li>
         <li class="breadcrumb-item active">Prep Plan</li>
     </ol>
 </nav>
@@ -9,7 +9,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Meal Prep Plan</h1>
     <div class="btn-group">
-        <a href="/plans/<?= $planId ?>" class="btn btn-outline-secondary">Back to Plan</a>
+        <a href="<?= url('/plans/' . $planId) ?>" class="btn btn-outline-secondary">Back to Plan</a>
         <button onclick="window.print()" class="btn btn-outline-primary">Print</button>
     </div>
 </div>
@@ -17,11 +17,8 @@
 <?php if (empty($prepPlan)): ?>
     <div class="alert alert-info">
         <p class="mb-2">Prep plan not yet generated.</p>
-        <button type="button"
-                class="btn btn-primary"
-                hx-post="/plans/<?= $planId ?>/prep"
-                hx-target="body"
-                hx-swap="innerHTML">
+        <button type="button" class="btn btn-primary" hx-post="/plans/<?= $planId ?>/prep" hx-target="body"
+            hx-swap="innerHTML">
             Generate Prep Plan
         </button>
     </div>
@@ -105,8 +102,17 @@
     <!-- Print Styles -->
     <style>
         @media print {
-            .navbar, .breadcrumb, .btn-group, footer { display: none !important; }
-            .card { break-inside: avoid; }
+
+            .navbar,
+            .breadcrumb,
+            .btn-group,
+            footer {
+                display: none !important;
+            }
+
+            .card {
+                break-inside: avoid;
+            }
         }
     </style>
 <?php endif; ?>

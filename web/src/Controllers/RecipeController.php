@@ -1,98 +1,132 @@
 <?php
 
-declare(strict_types=1);
+namespace App\Controllers;
 
-namespace MealPlanner\Controllers;
-
-use MealPlanner\Services\ApiClient;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\PhpRenderer;
+use App\Services\ApiClient;
+
+use App\Services\SessionService;
 
 class RecipeController
 {
-    public function __construct(
-        private PhpRenderer $view,
-        private ApiClient $apiClient
-    ) {}
+    protected $view;
+    protected $api;
+    protected $session;
 
-    /**
-     * List all recipes with pagination and filters
-     */
-    public function index(Request $request, Response $response): Response
+    public function __construct(PhpRenderer $view, ApiClient $api, SessionService $session)
     {
-        $params = $request->getQueryParams();
-        $page = (int) ($params['page'] ?? 1);
-        $mealType = $params['meal_type'] ?? null;
-        $dishRole = $params['dish_role'] ?? null;
+        $this->view = $view;
+        $this->api = $api;
+        $this->session = $session;
+    }
 
-        $query = ['page' => $page, 'limit' => 20];
-        if ($mealType) $query['meal_type'] = $mealType;
-        if ($dishRole) $query['dish_role'] = $dishRole;
+    public function index(Request $request, Response $response, $args): Response
+    {
+        $queryParams = $request->getQueryParams();
+        $page = $queryParams['page'] ?? 1;
+        $limit = 50;  // Increased for better visibility
+        $skip = ($page - 1) * $limit;
 
-        $result = $this->apiClient->get('api/recipes', $query);
+        $filters = [
+            'skip' => $skip,
+            'limit' => $limit
+        ];
 
+        if (!empty($queryParams['search'])) {
+            $filters['search'] = $queryParams['search'];
+        }
+        if (!empty($queryParams['meal_type']) && $queryParams['meal_type'] !== 'all') {
+            $filters['meal_type'] = $queryParams['meal_type'];
+        }
+        if (!empty($queryParams['dish_role']) && $queryParams['dish_role'] !== 'all') {
+            $filters['dish_role'] = $queryParams['dish_role'];
+        }
+        if (!empty($queryParams['catalog_id'])) {
+            $filters['catalog_id'] = $queryParams['catalog_id'];
+        }
+
+        // Fetch recipes from API
+        $recipes = $this->api->get('/api/recipes', $filters);
+
+        // Fetch catalogs for filter
+        $catalogs = $this->api->get('/api/catalogs');
+
+        // Get total count for pagination (simplified for now, ideally API returns metadata)
+        // For MVP, we might just check if we got full limit to determine "Next"
+        $countData = $this->api->get('/api/recipes/count');
+        $total = $countData['count'] ?? 0;
+        $totalPages = ceil($total / $limit);
+
+        error_log("Pagination Debug: Total=$total, Limit=$limit, Pages=$totalPages");
+
+        $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'recipes/index.php', [
-            'title' => 'Recipes - Meal Planner',
-            'activeNav' => 'recipes',
-            'recipes' => $result['recipes'] ?? [],
-            'pagination' => $result['pagination'] ?? [],
-            'filters' => [
-                'meal_type' => $mealType,
-                'dish_role' => $dishRole,
-            ],
+            'title' => 'Browse Recipes',
+            'recipes' => $recipes,
+            'catalogs' => $catalogs,
+            'currentPage' => (int) $page,
+            'totalPages' => $totalPages,
+            'filters' => $queryParams,
+            'totalRecipes' => $total
         ]);
     }
 
-    /**
-     * Show single recipe details
-     */
-    public function show(Request $request, Response $response, array $args): Response
+    public function show(Request $request, Response $response, $args): Response
     {
-        $id = (int) $args['id'];
-        $recipe = $this->apiClient->get("api/recipes/{$id}");
+        $id = $args['id'];
+        $recipe = $this->api->get("/api/recipes/{$id}");
 
-        if (isset($recipe['error'])) {
-            // Recipe not found, redirect to list
+        if (!$recipe || isset($recipe['detail'])) {
+            // Handle 404
+            $response->getBody()->write("Recipe not found");
+            return $response->withStatus(404);
+        }
+
+        $this->view->setLayout('layouts/main.php');
+        return $this->view->render($response, 'recipes/show.php', [
+            'title' => $recipe['name'],
+            'recipe' => $recipe,
+            'queryParams' => $request->getQueryParams()
+        ]);
+    }
+
+    public function edit(Request $request, Response $response, $args): Response
+    {
+        $id = $args['id'];
+        $recipe = $this->api->get("/api/recipes/{$id}");
+
+        if (!$recipe || isset($recipe['detail'])) {
+            $this->session->flash('error', 'Recipe not found.');
             return $response->withHeader('Location', '/recipes')->withStatus(302);
         }
 
-        return $this->view->render($response, 'recipes/show.php', [
-            'title' => ($recipe['name'] ?? 'Recipe') . ' - Meal Planner',
-            'activeNav' => 'recipes',
+        $this->view->setLayout('layouts/main.php');
+        return $this->view->render($response, 'recipes/edit.php', [
+            'title' => 'Edit ' . $recipe['name'],
             'recipe' => $recipe,
+            'flash' => $this->session->getFlash()
         ]);
     }
 
-    /**
-     * Search recipes (HTMX partial response)
-     */
-    public function search(Request $request, Response $response): Response
+    public function update(Request $request, Response $response, $args): Response
     {
-        $params = $request->getQueryParams();
-        $query = $params['q'] ?? '';
+        $id = $args['id'];
+        $data = $request->getParsedBody();
 
-        $result = $this->apiClient->post('api/recipes/search', [
-            'query' => $query,
-            'limit' => 20,
-        ]);
+        $this->api->put("/api/recipes/{$id}", $data);
+        $this->session->flash('success', 'Recipe updated.');
 
-        // Check if this is an HTMX request
-        $isHtmx = $request->hasHeader('HX-Request');
+        return $response->withHeader('Location', "/recipes/{$id}")->withStatus(302);
+    }
 
-        if ($isHtmx) {
-            // Return partial HTML for HTMX
-            return $this->view->render($response, 'recipes/_list.php', [
-                'recipes' => $result['recipes'] ?? [],
-            ]);
-        }
+    public function delete(Request $request, Response $response, $args): Response
+    {
+        $id = $args['id'];
+        $this->api->delete("/api/recipes/{$id}");
+        $this->session->flash('success', 'Recipe deleted.');
 
-        // Full page response
-        return $this->view->render($response, 'recipes/index.php', [
-            'title' => 'Search Results - Meal Planner',
-            'activeNav' => 'recipes',
-            'recipes' => $result['recipes'] ?? [],
-            'searchQuery' => $query,
-        ]);
+        return $response->withHeader('Location', '/recipes')->withStatus(302);
     }
 }

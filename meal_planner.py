@@ -15,26 +15,12 @@ from typing import Optional, List, Dict
 from pathlib import Path
 import requests
 
-# API endpoints
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
-
-# Default state file location (central location in home directory)
-DEFAULT_STATE_FILE = os.path.expanduser("~/.meal_plan_state.json")
-
-# Known Claude models
-CLAUDE_MODELS = [
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514", 
-    "claude-3-5-sonnet-20241022",
-    "claude-3-opus-20240229",
-    "claude-3-haiku-20240307"
-]
+from backend import config, llm
 
 
 def get_state_file_path(catalog_path: str = None) -> str:
     """Get the state file path - always uses central location in home directory."""
-    return DEFAULT_STATE_FILE
+    return config.DEFAULT_STATE_FILE
 
 
 def save_state(state_file: str, recipes: List[dict], meal_type: str, catalogs: List[str] = None):
@@ -162,74 +148,12 @@ def print_recipe_details(recipe: dict):
     print("\n" + "=" * 60)
 
 
+# Helper functions delegated to backend.llm
 def is_claude_model(model: str) -> bool:
-    """Check if the model is a Claude model."""
-    return any(cm in model for cm in CLAUDE_MODELS) or model.startswith("claude-")
-
-
-def query_ollama(prompt: str, model: str) -> Optional[str]:
-    """Send a text prompt to Ollama."""
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.7,
-            "num_predict": 4096
-        }
-    }
-    
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=180)
-        response.raise_for_status()
-        return response.json().get("response", "")
-    except requests.exceptions.ConnectionError:
-        print(f"Error: Cannot connect to Ollama at {OLLAMA_API_URL}")
-        return None
-    except Exception as e:
-        print(f"Error querying Ollama: {e}")
-        return None
-
-
-def query_claude(prompt: str, model: str, api_key: str) -> Optional[str]:
-    """Send a text prompt to Claude API."""
-    headers = {
-        "Content-Type": "application/json",
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01"
-    }
-    
-    payload = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-    
-    try:
-        response = requests.post(CLAUDE_API_URL, headers=headers, json=payload, timeout=180)
-        
-        if response.status_code != 200:
-            print(f"Error: Claude API returned {response.status_code}: {response.text[:200]}")
-            return None
-        
-        result = response.json()
-        return result.get("content", [{}])[0].get("text", "")
-    except Exception as e:
-        print(f"Error querying Claude: {e}")
-        return None
-
+    return llm.is_claude_model(model)
 
 def query_llm(prompt: str, model: str, api_key: str = None) -> Optional[str]:
-    """Query either Ollama or Claude based on model name."""
-    if is_claude_model(model):
-        if not api_key:
-            print("Error: Claude API key required. Set ANTHROPIC_API_KEY or use --api-key")
-            return None
-        return query_claude(prompt, model, api_key)
-    else:
-        return query_ollama(prompt, model)
+    return llm.query_llm(prompt, model, api_key)
 
 
 def load_catalog(catalog_paths) -> Optional[dict]:
@@ -903,7 +827,7 @@ Examples:
     
     # Handle --show flag first (doesn't require catalog or model)
     if args.show is not None:
-        state_file = DEFAULT_STATE_FILE
+        state_file = config.DEFAULT_STATE_FILE
         saved_state = load_state(state_file)
         
         if not saved_state:
@@ -966,7 +890,7 @@ Examples:
     
     # Handle --grocery-list or --meal-prep with saved state (no catalog needed)
     if (args.grocery_list or args.meal_prep) and not args.catalog and not args.new:
-        state_file = DEFAULT_STATE_FILE
+        state_file = config.DEFAULT_STATE_FILE
         saved_state = load_state(state_file)
         
         if not saved_state:

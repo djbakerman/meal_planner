@@ -1,0 +1,11 @@
+/* Basic Minimal Styles */
+body {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+.navbar {
+    margin-bottom: 2rem;
+}
+.card-recipe {
+    height: 100%;
+}

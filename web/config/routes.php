@@ -1,51 +1,67 @@
 <?php
 
-declare(strict_types=1);
-
 use Slim\App;
-use MealPlanner\Controllers\HomeController;
-use MealPlanner\Controllers\RecipeController;
-use MealPlanner\Controllers\PlanController;
-use MealPlanner\Controllers\CatalogController;
-use MealPlanner\Controllers\AuthController;
+use App\Controllers\HomeController;
+use App\Controllers\CatalogController;
+use App\Controllers\RecipeController;
+use App\Controllers\PlanController;
+use App\Controllers\HelpController;
+
+use Slim\Routing\RouteCollectorProxy;
+use App\Controllers\AuthController;
+use App\Middleware\AuthMiddleware;
 
 return function (App $app) {
-    // ==========================================
-    // Authentication (public)
-    // ==========================================
-    $app->get('/login', [AuthController::class, 'loginForm'])->setName('auth.login');
-    $app->post('/login', [AuthController::class, 'login'])->setName('auth.login.post');
-    $app->get('/register', [AuthController::class, 'registerForm'])->setName('auth.register');
-    $app->post('/register', [AuthController::class, 'register'])->setName('auth.register.post');
-    $app->get('/logout', [AuthController::class, 'logout'])->setName('auth.logout');
+    $container = $app->getContainer();
 
-    // ==========================================
-    // Public Routes
-    // ==========================================
+    // Routes
+    $app->get('/', [HomeController::class, 'index']);
+    $app->get('/help', [HelpController::class, 'index']);
+    $app->get('/health', [HomeController::class, 'health']);
 
-    // Home / Dashboard
-    $app->get('/', [HomeController::class, 'index'])->setName('home');
+    // Auth Routes
+    $app->get('/login', [AuthController::class, 'loginForm']);
+    $app->post('/login', [AuthController::class, 'login']);
+    $app->get('/register', [AuthController::class, 'registerForm']);
+    $app->post('/register', [AuthController::class, 'register']);
+    $app->get('/logout', [AuthController::class, 'logout']);
 
-    // Recipes (public browsing)
-    $app->get('/recipes', [RecipeController::class, 'index'])->setName('recipes.index');
-    $app->get('/recipes/{id:[0-9]+}', [RecipeController::class, 'show'])->setName('recipes.show');
-    $app->get('/recipes/search', [RecipeController::class, 'search'])->setName('recipes.search');
+    // Google OAuth
+    $app->get('/auth/google', [AuthController::class, 'googleLogin']);
+    $app->get('/redirect', [AuthController::class, 'googleCallback']);
 
-    // ==========================================
-    // Meal Plans (works with or without auth)
-    // ==========================================
-    $app->get('/plans', [PlanController::class, 'index'])->setName('plans.index');
-    $app->get('/plans/new', [PlanController::class, 'create'])->setName('plans.create');
-    $app->post('/plans/generate', [PlanController::class, 'generate'])->setName('plans.generate');
-    $app->get('/plans/{id:[0-9]+}', [PlanController::class, 'show'])->setName('plans.show');
-    $app->delete('/plans/{id:[0-9]+}', [PlanController::class, 'delete'])->setName('plans.delete');
-    $app->get('/plans/{id:[0-9]+}/grocery', [PlanController::class, 'grocery'])->setName('plans.grocery');
-    $app->get('/plans/{id:[0-9]+}/prep', [PlanController::class, 'prep'])->setName('plans.prep');
-    $app->post('/plans/{id:[0-9]+}/reroll/{recipeId:[0-9]+}', [PlanController::class, 'reroll'])->setName('plans.reroll');
+    // Recipe Routes (Moved to Protected)
 
-    // ==========================================
-    // Catalogs (admin functionality)
-    // ==========================================
-    $app->get('/catalogs', [CatalogController::class, 'index'])->setName('catalogs.index');
-    $app->post('/catalogs/import', [CatalogController::class, 'import'])->setName('catalogs.import');
+    // Protected Routes
+    $app->group('', function (RouteCollectorProxy $group) {
+        // Plan Routes
+        $group->get('/plans', [PlanController::class, 'index']);
+        $group->get('/plans/new', [PlanController::class, 'create']);
+        $group->post('/plans', [PlanController::class, 'store']);
+        $group->get('/plans/{id}', [PlanController::class, 'show']);
+        $group->post('/plans/{id}/grocery', [PlanController::class, 'generateGrocery']);
+        $group->post('/plans/{id}/prep', [PlanController::class, 'generatePrep']);
+        $group->post('/plans/{id}/swap', [PlanController::class, 'swap']);
+        $group->post('/plans/{id}/remove', [PlanController::class, 'remove']);
+        $group->post('/plans/{id}/add', [PlanController::class, 'add']);
+        $group->post('/plans/{id}/share', [PlanController::class, 'toggleShare']);
+        $group->post('/plans/{id}/like', [PlanController::class, 'toggleLike']);
+        $group->post('/plans/{id}/update', [PlanController::class, 'update']);
+        $group->post('/plans/{id}/delete', [PlanController::class, 'delete']);
+        $group->post('/plans/{id}/clone', [PlanController::class, 'clone']);
+
+        // Catalog Routes
+        $group->get('/catalogs', [CatalogController::class, 'index']);
+        $group->post('/catalogs/import', [CatalogController::class, 'import']);
+        $group->get('/catalogs/{id}', [CatalogController::class, 'show']);
+        $group->post('/catalogs/{id}', [CatalogController::class, 'update']);
+        $group->post('/catalogs/{id}/delete', [CatalogController::class, 'delete']);
+
+        // Recipe Protected Routes
+        $group->get('/recipes', [RecipeController::class, 'index']);
+        $group->get('/recipes/{id}[/]', [RecipeController::class, 'show']); // Allow optional trailing slash
+        $group->get('/recipes/{id}/edit', [RecipeController::class, 'edit']);
+        $group->post('/recipes/{id}', [RecipeController::class, 'update']);
+        $group->post('/recipes/{id}/delete', [RecipeController::class, 'delete']);
+    })->add(AuthMiddleware::class);
 };

@@ -1,73 +1,113 @@
 <?php
 
-declare(strict_types=1);
+namespace App\Controllers;
 
-namespace MealPlanner\Controllers;
-
-use MealPlanner\Services\ApiClient;
-use MealPlanner\Services\SessionService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\PhpRenderer;
+use App\Services\ApiClient;
+
+use App\Services\SessionService;
 
 class CatalogController
 {
-    public function __construct(
-        private PhpRenderer $view,
-        private ApiClient $apiClient,
-        private SessionService $session
-    ) {}
+    protected $view;
+    protected $api;
+    protected $session;
 
-    /**
-     * List all catalogs
-     */
-    public function index(Request $request, Response $response): Response
+    public function __construct(PhpRenderer $view, ApiClient $api, SessionService $session)
     {
-        $result = $this->apiClient->get('api/catalogs');
+        $this->view = $view;
+        $this->api = $api;
+        $this->session = $session;
+    }
 
+    public function index(Request $request, Response $response, $args): Response
+    {
+        // Fetch catalogs from API
+        $catalogs = $this->api->get('/api/catalogs');
+
+        $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'catalogs/index.php', [
-            'title' => 'Catalogs - Meal Planner',
-            'activeNav' => 'catalogs',
-            'catalogs' => $result['catalogs'] ?? [],
-            'flash' => $this->session->getFlash(),
+            'title' => 'Recipe Catalogs',
+            'catalogs' => $catalogs
         ]);
     }
 
-    /**
-     * Import a JSON catalog file
-     */
     public function import(Request $request, Response $response): Response
     {
-        $data = $request->getParsedBody();
-        $filePath = $data['file_path'] ?? '';
+        $uploadedFiles = $request->getUploadedFiles();
 
-        if (empty($filePath)) {
-            $this->session->flash('error', 'Please provide a file path.');
-            return $response->withHeader('Location', '/catalogs')->withStatus(302);
-        }
+        // Handle file upload
+        if (!empty($uploadedFiles['catalog_file'])) {
+            $uploadedFile = $uploadedFiles['catalog_file'];
+            if ($uploadedFile->getError() === UPLOAD_ERR_OK) {
+                $filename = $uploadedFile->getClientFilename();
+                $tempPath = sys_get_temp_dir() . '/' . $filename;
+                $uploadedFile->moveTo($tempPath);
 
-        $result = $this->apiClient->post('api/catalogs/import', [
-            'file_path' => $filePath,
-        ]);
+                // Send to API
+                $result = $this->api->postMultipart('/api/catalogs/import', [
+                    'file' => $tempPath
+                ]);
 
-        if (isset($result['error'])) {
-            $this->session->flash('error', 'Import failed: ' . $result['error']);
-        } elseif (isset($result['success']) && $result['success']) {
-            $msg = sprintf(
-                'Successfully imported "%s": %d recipes, %d chapters',
-                $result['catalog_name'] ?? 'catalog',
-                $result['recipes_imported'] ?? 0,
-                $result['chapters_imported'] ?? 0
-            );
-            $this->session->flash('success', $msg);
+                // Cleanup temp file
+                if (file_exists($tempPath)) {
+                    unlink($tempPath);
+                }
 
-            if (!empty($result['errors'])) {
-                $this->session->flash('warning', 'Some items had issues: ' . count($result['errors']) . ' errors');
+                if (isset($result['message'])) {
+                    $this->session->flash('success', 'Import started for ' . $filename);
+                } else {
+                    $error = $result['error'] ?? 'Unknown error';
+                    $this->session->flash('error', 'Import failed: ' . $error);
+                }
+            } else {
+                $this->session->flash('error', 'File upload error.');
             }
         } else {
-            $this->session->flash('warning', 'Import completed with unknown status.');
+            $this->session->flash('error', 'No file uploaded.');
         }
 
-        return $response->withHeader('Location', '/catalogs')->withStatus(302);
+        return $response->withHeader('Location', url('/catalogs'))->withStatus(302);
+    }
+
+    public function show(Request $request, Response $response, $args): Response
+    {
+        $id = $args['id'];
+        $catalog = $this->api->get("/api/catalogs/{$id}");
+
+        if (!$catalog || isset($catalog['detail'])) {
+            $this->session->flash('error', 'Catalog not found.');
+            return $response->withHeader('Location', url('/catalogs'))->withStatus(302);
+        }
+
+        $this->view->setLayout('layouts/main.php');
+        return $this->view->render($response, 'catalogs/show.php', [
+            'title' => $catalog['name'],
+            'catalog' => $catalog,
+            'flash' => $this->session->getFlash()
+        ]);
+    }
+
+    public function update(Request $request, Response $response, $args): Response
+    {
+        $id = $args['id'];
+        $data = $request->getParsedBody();
+
+        if (!empty($data['name'])) {
+            $this->api->put("/api/catalogs/{$id}", ['name' => $data['name']]);
+            $this->session->flash('success', 'Catalog renamed.');
+        }
+
+        return $response->withHeader('Location', url("/catalogs/{$id}"))->withStatus(302);
+    }
+
+    public function delete(Request $request, Response $response, $args): Response
+    {
+        $id = $args['id'];
+        $this->api->delete("/api/catalogs/{$id}");
+        $this->session->flash('success', 'Catalog and all its recipes deleted.');
+        return $response->withHeader('Location', url('/catalogs'))->withStatus(302);
     }
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MealPlanner\Services;
+namespace App\Services;
 
 /**
  * Simple session-based flash message service
@@ -12,7 +12,13 @@ class SessionService
     public function __construct()
     {
         if (session_status() === PHP_SESSION_NONE) {
-            session_start();
+            // Hardened Session Security
+            session_start([
+                'cookie_httponly' => true,
+                'cookie_secure' => isset($_SERVER['HTTPS']), // Only if HTTPS is on
+                'cookie_samesite' => 'Strict',
+                'use_strict_mode' => true,
+            ]);
         }
     }
 
