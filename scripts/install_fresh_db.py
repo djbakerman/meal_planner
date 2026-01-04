@@ -48,7 +48,7 @@ def install_fresh_db():
     cmd_base = get_mysql_command_base(config)
     
     # Run Drop/Create
-    create_cmd = cmd_base + ["-e", drop_create_sql]
+    create_cmd = cmd_base + ["-e", f"'{drop_create_sql}'"]
     db_tools.run_command(" ".join(create_cmd), env)
     
     # 2. Import Schema
