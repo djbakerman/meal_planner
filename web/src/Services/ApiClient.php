@@ -18,7 +18,7 @@ class ApiClient
 
         $this->client = new Client([
             'base_uri' => $this->baseUrl,
-            'timeout' => 10.0,
+            'timeout' => 30.0,
             'headers' => [
                 'X-Internal-Secret' => getenv('INTERNAL_API_KEY') ?? '',
                 'Accept' => 'application/json'

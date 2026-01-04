@@ -1,3 +1,12 @@
+<div class="alert alert-info border-info shadow-sm d-flex align-items-center mb-4" role="alert">
+    <span class="fs-4 me-3">🍽️</span>
+    <div>
+        <strong>Smart Kitchen Assistant</strong>
+        <div class="small">This plan is optimized to minimize total prep time and food waste across the week.</div>
+    </div>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+
 <div class="row align-items-center mb-4">
     <div class="col-md-6">
         <a href="<?= url('/plans') ?>" class="text-decoration-none text-muted mb-2 d-inline-block">&larr; All Plans</a>
@@ -53,12 +62,14 @@
     <?php if ($isOwner): ?>
         <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
             <!-- These buttons will be activated in Module 5 -->
-            <form action="<?= url('/plans/' . $plan['id'] . '/grocery') ?>" method="POST">
+            <form action="<?= url('/plans/' . $plan['id'] . '/grocery') ?>" method="POST"
+                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'Generating List...');">
                 <button type="submit" class="btn btn-success">
                     🛒 Grocery List
                 </button>
             </form>
-            <form action="<?= url('/plans/' . $plan['id'] . '/prep') ?>" method="POST">
+            <form action="<?= url('/plans/' . $plan['id'] . '/prep') ?>" method="POST"
+                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'Writing Plan...');">
                 <button type="submit" class="btn btn-info text-white">
                     🔪 Prep Plan
                 </button>
@@ -190,7 +201,7 @@
                                 <div class="d-flex w-100 justify-content-between align-items-center">
                                     <div>
                                         <h5 class="mb-1">
-                                            <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id']) ?>"
+                                            <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id'] . '&serving_target=' . ($plan['target_servings'] ?? 4)) ?>"
                                                 class="text-decoration-none text-dark">
                                                 <?= h($recipe['name']) ?>
                                             </a>
@@ -198,6 +209,11 @@
                                         <div class="text-muted small">
                                             <span
                                                 class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
+                                            <?php if (!empty($recipe['calories'])): ?>
+                                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger me-1">
+                                                    🔥 <?= h($recipe['calories']) ?>
+                                                </span>
+                                            <?php endif; ?>
                                             Using: <?= h($recipe['dish_role']) ?>
                                         </div>
                                     </div>
@@ -230,13 +246,19 @@
                             <div class="d-flex w-100 justify-content-between align-items-center">
                                 <div>
                                     <h5 class="mb-1">
-                                        <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id']) ?>"
+                                        <a href="<?= url('/recipes/' . $recipe['id'] . '?from_plan=' . $plan['id'] . '&serving_target=' . ($plan['target_servings'] ?? 4)) ?>"
                                             class="text-decoration-none text-dark">
                                             <?= h($recipe['name']) ?>
                                         </a>
                                     </h5>
                                     <div class="text-muted small">
-                                        <span class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
+                                        <span
+                                            class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
+                                        <?php if (!empty($recipe['calories'])): ?>
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger me-1">
+                                                🔥 <?= h($recipe['calories']) ?>
+                                            </span>
+                                        <?php endif; ?>
                                         Using: <?= h($recipe['dish_role']) ?>
                                     </div>
                                 </div>
@@ -278,6 +300,20 @@
             <h5>💡 Plan Stats</h5>
             <ul class="list-unstyled mb-0">
                 <li><strong>Meals:</strong> <?= $plan['recipe_count'] ?></li>
+                <li>
+                    <strong>Servings:</strong>
+                    <span id="servingsDisplay"><?= $plan['target_servings'] ?? 4 ?></span> ppl
+                    <?php if ($isOwner): ?>
+                        <a href="#" onclick="updateServings()" class="text-decoration-none text-muted small ms-1"
+                            title="Change target servings">✏️</a>
+                    <?php endif; ?>
+                </li>
+                <?php if ($isOwner): ?>
+                    <form id="updateServingsForm" action="<?= url('/plans/' . $plan['id'] . '/update') ?>" method="POST"
+                        style="display:none;">
+                        <input type="number" name="target_servings" id="newServingsInput">
+                    </form>
+                <?php endif; ?>
                 <li><strong>Types:</strong> <?= implode(', ', array_map('ucfirst', $plan['meal_types'] ?? [])) ?></li>
             </ul>
         </div>
@@ -294,6 +330,21 @@
         if (newName && newName.trim() !== "" && newName !== currentName) {
             document.getElementById('newNameInput').value = newName;
             document.getElementById('renameForm').submit();
+        }
+    }
+
+    function updateServings() {
+        const current = document.getElementById('servingsDisplay').innerText;
+        const newServings = prompt("Change target servings (Lists will be invalidated):", current);
+
+        if (newServings && newServings.trim() !== "" && newServings !== current) {
+            const val = parseInt(newServings);
+            if (isNaN(val) || val < 1) {
+                alert("Please enter a valid number (1+).");
+                return;
+            }
+            document.getElementById('newServingsInput').value = val;
+            document.getElementById('updateServingsForm').submit();
         }
     }
 
@@ -317,5 +368,21 @@
                 form.submit();
             }
         }
+    }
+
+
+    function handleGeneratorSubmit(btn, loadingText) {
+        // Prevent double clicks
+        if (btn.disabled) return false;
+
+        // Save original text if needed (though page will reload)
+        const originalText = btn.innerHTML;
+
+        // Update UI
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${loadingText}`;
+
+        // Allow form submission to proceed
+        return true;
     }
 </script>

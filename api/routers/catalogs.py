@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
 import os
@@ -31,6 +31,7 @@ def read_catalog(catalog_id: int, db: Session = Depends(get_db)):
 @router.post("/import")
 def import_catalog_endpoint(
     file: UploadFile = File(...), 
+    enrich: bool = Form(False),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
@@ -47,16 +48,16 @@ def import_catalog_endpoint(
         import shutil
         shutil.copyfileobj(file.file, buffer)
         
-    background_tasks.add_task(import_catalog_task, file_path)
+    background_tasks.add_task(import_catalog_task, file_path, enrich=enrich)
     
     return {"message": "Import started in background", "file": file.filename}
 
-def import_catalog_task(file_path: str):
+def import_catalog_task(file_path: str, enrich: bool = False):
     # Create a fresh session for the background thread
     from api.database import SessionLocal
     db = SessionLocal()
     try:
-        import_catalog(file_path, db)
+        import_catalog(file_path, db, verbose=True, enrich=enrich)
     finally:
         db.close()
 

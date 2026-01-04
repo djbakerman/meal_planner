@@ -22,108 +22,121 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     """
     selected_recipes = []
     
-    # Determine strategy
-    # If 'days' is provided, we want X recipes PER type (e.g. 5 days of Breakfast + Dinner = 10 recipes)
-    count_per_type = 0
-    if request.days and request.days > 0:
-        count_per_type = request.days
-    else:
-        # Legacy/Total Count mode: Distribute total across types
-        # e.g. 5 recipes, 2 types -> 2 and 3.
-        # But we'll handle this dynamically if needed. For now, let's assume balanced.
-        if request.meal_types:
-            count_per_type = max(1, request.recipe_count // len(request.meal_types))
-            # Note: This logic might under-count if there's a remainder, 
-            # but user complaint was about balance.
-    
-    # Exclusions preparation
-    exclusions = [e.lower().strip() for e in request.excluded_ingredients] if request.excluded_ingredients else []
-    
-    # If NO meal types selected, we act in "Any" mode
-    if not request.meal_types:
-        # Select purely random recipes matching catalog/exclusions
+    # If use_cumulative_count is True, we want TOTAL recipes mixed from types
+    if request.use_cumulative_count:
+        # Cumulative Mode
+        # Target total is days (if set) or recipe_count
+        target_total = request.days if request.days and request.days > 0 else request.recipe_count
+        
+        # Prepare exclusions list
+        exclusions = [e.strip().lower() for e in request.excluded_ingredients.split(',')] if request.excluded_ingredients else []
+
+        # Build query for ALL selected types
         query = db.query(orm.Recipe)
-        if request.catalog_id:
-            query = query.filter(orm.Recipe.catalog_id == request.catalog_id)
+        if request.meal_types:
+            query = query.filter(orm.Recipe.meal_type.in_(request.meal_types))
             
+        if request.catalog_ids:
+            query = query.filter(orm.Recipe.catalog_id.in_(request.catalog_ids))
+            
+        query = query.filter(orm.Recipe.dish_role != 'sub_recipe')
+        
         candidates = query.all()
         
         # Apply Exclusions
         valid_candidates = []
         if exclusions:
-            for r in candidates:
-                is_excluded = False
-                if any(ex in r.name.lower() for ex in exclusions): is_excluded = True
-                else: 
-                     for ing in r.ingredients:
-                        if any(ex in ing.ingredient_text.lower() for ex in exclusions):
-                            is_excluded = True; break
-                if not is_excluded: valid_candidates.append(r)
+             for r in candidates:
+                # Check name
+                if any(ex in r.name.lower() for ex in exclusions): continue
+                # Check ingredients
+                if any(any(ex in ing.ingredient_text.lower() for ex in exclusions) for ing in r.ingredients): continue
+                valid_candidates.append(r)
         else:
             valid_candidates = candidates
             
-        # Select target count
-        # If days provided, assume 1 recipe per day? Or request.recipe_count?
-        # Typically slider maps to request.recipe_count (days).
-        # Let's use request.recipe_count as target total.
-        target_count = request.recipe_count
-        
-        if len(valid_candidates) <= target_count:
+        if len(valid_candidates) <= target_total:
             selected_recipes = valid_candidates
         else:
-            selected_recipes = random.sample(valid_candidates, target_count)
-
+            selected_recipes = random.sample(valid_candidates, target_total)
+            
     else:
-        # Standard Stratified Logic
-        for m_type in request.meal_types:
+        # Standard Stratified Logic (Per Type)
+        # Re-using legacy block but optimized
+        
+        # Calculate count per type
+        count_per_type = request.days if (request.days and request.days > 0) else max(1, request.recipe_count // max(1, len(request.meal_types or [])))
 
-            query = db.query(orm.Recipe).filter(orm.Recipe.meal_type == m_type)
-            
-            if request.catalog_id:
-                query = query.filter(orm.Recipe.catalog_id == request.catalog_id)
+        # Handle "Any" case if no types selected (Implicit Cumulative/Random)
+        if not request.meal_types:
+             # Just select randoms
+             query = db.query(orm.Recipe)
+             if request.catalog_ids: query = query.filter(orm.Recipe.catalog_id.in_(request.catalog_ids))
+             query = query.filter(orm.Recipe.dish_role != 'sub_recipe')
+             candidates = query.all()
+             
+             # Exclusions...
+             valid_candidates = [r for r in candidates if not any(ex in r.name.lower() for ex in exclusions) and not any(any(ex in i.ingredient_text.lower() for ex in exclusions) for i in r.ingredients)]
+             
+             target = request.recipe_count
+             selected_recipes = valid_candidates if len(valid_candidates) <= target else random.sample(valid_candidates, target)
+        
+        else:
+            for m_type in request.meal_types:
+                query = db.query(orm.Recipe).filter(orm.Recipe.meal_type == m_type)
+                if request.catalog_ids: query = query.filter(orm.Recipe.catalog_id.in_(request.catalog_ids))
+                query = query.filter(orm.Recipe.dish_role != 'sub_recipe')
                 
-            candidates = query.all()
-            
-            # Filter exclusions (Python side for flexibility)
-            valid_candidates = []
-            if exclusions:
-                for r in candidates:
-                    # Check name and ingredients
-                    is_excluded = False
-                    
-                    # Check name
-                    if any(ex in r.name.lower() for ex in exclusions):
-                        is_excluded = True
-                    else:
-                        # Check ingredients
-                        for ing in r.ingredients:
-                            if any(ex in ing.ingredient_text.lower() for ex in exclusions):
-                                is_excluded = True
-                                break
-                                
-                    if not is_excluded:
+                candidates = query.all()
+                
+                # Exclusions
+                valid_candidates = []
+                if exclusions:
+                    for r in candidates:
+                        if any(ex in r.name.lower() for ex in exclusions): continue
+                        if any(any(ex in ing.ingredient_text.lower() for ex in exclusions) for ing in r.ingredients): continue
                         valid_candidates.append(r)
-            else:
-                valid_candidates = candidates
+                else: valid_candidates = candidates
                 
-            # Select
-            count_needed = count_per_type
-            
-            # Handling legacy manual count remainder if 'days' wasn't used?
-            # If 'days' is not used, request.recipe_count applies globally.
-            # This loop logic assumes stratified.
-            # If user asked for 5 total, and we have 2 types, we calculated count_per_type = 2.
-            # Total = 4. We miss 1.
-            # Ideally we'd add the remainder to one type. 
-            # But for the specific user request "5 and 5", they likely mean Days.
-            
-            if len(valid_candidates) <= count_needed:
-                selected_recipes.extend(valid_candidates)
-            else:
-                selected_recipes.extend(random.sample(valid_candidates, count_needed))
+                if len(valid_candidates) <= count_per_type:
+                    selected_recipes.extend(valid_candidates)
+                else:
+                    selected_recipes.extend(random.sample(valid_candidates, count_per_type))
             
     # Handle remainder for fixed total count if needed (only if days wasn't used)
     # If using 'days', strictly stick to stratified count (days * types) even if it means missing some if not enough recipes.
+    
+    # --- SUB-RECIPE DEPENDENCY RESOLUTION ---
+    # Check selected recipes for required sub-recipes
+    # We iterate a copy or index to avoid infinite loops if sub-recipes have sub-recipes (though typically 1 level)
+    
+    final_recipes = list(selected_recipes)
+    processed_ids = {r.id for r in final_recipes}
+    
+    for r in selected_recipes:
+        # Check sub_recipes JSON field: ["Name of Sub 1", "Name of Sub 2"]
+        if r.sub_recipes:
+            for sub_name in r.sub_recipes:
+                # Find this sub-recipe
+                # Ideally look in same catalog, or globally?
+                # Let's try globally for now, or prefer same catalog
+                sub_query = db.query(orm.Recipe).filter(
+                    orm.Recipe.name.ilike(sub_name), # Case insensitive match
+                    orm.Recipe.dish_role == 'sub_recipe'
+                )
+                
+                # If original recipe has catalog, strictly match it
+                if r.catalog_id:
+                     found = sub_query.filter(orm.Recipe.catalog_id == r.catalog_id).first()
+                else:
+                    # If main has no catalog (orphan), allow any sub-recipe
+                    found = sub_query.first()
+                
+                if found and found.id not in processed_ids:
+                    final_recipes.append(found)
+                    processed_ids.add(found.id)
+                    
+    selected_recipes = final_recipes
     
     # Generate creative name using AI
     from api.services import ai_service
@@ -148,6 +161,7 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
         name=plan_name,
         recipe_count=len(selected_recipes),
         meal_types=request.meal_types,
+        target_servings=request.target_servings,
         user_id=request.user_id,
         created_at=datetime.now()
     )
@@ -251,14 +265,14 @@ def share_plan(plan_id: int, request: dict, db: Session = Depends(get_db)):
                 
             if needs_grocery:
                 try:
-                    result_text = ai_service.generate_grocery_list(recipe_dicts)
+                    result_text = ai_service.generate_grocery_list(recipe_dicts, servings=plan.target_servings)
                     plan.grocery_list = {"content": result_text}
                 except Exception as e:
                     print(f"Auto-generate Grocery failed: {e}")
                     
             if needs_prep:
                 try:
-                    prep_text = ai_service.generate_prep_plan(recipe_dicts)
+                    prep_text = ai_service.generate_prep_plan(recipe_dicts, servings=plan.target_servings)
                     plan.prep_plan = {"content": prep_text}
                 except Exception as e:
                     print(f"Auto-generate Prep failed: {e}")
@@ -325,7 +339,9 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
     for rid in recipes_to_check:
         usage = db.query(orm.MealPlanRecipe).filter(orm.MealPlanRecipe.recipe_id == rid).count()
         if usage == 0:
-            db.query(orm.Recipe).filter(orm.Recipe.id == rid).delete()
+            recipe_to_del = db.query(orm.Recipe).filter(orm.Recipe.id == rid).first()
+            if recipe_to_del:
+                db.delete(recipe_to_del)
             
     db.commit()
     return {"status": "success", "message": "Plan deleted"}
@@ -343,6 +359,13 @@ def update_plan(plan_id: int, request: schemas.PlanUpdateRequest, db: Session = 
     
     if request.name:
         plan.name = request.name
+        
+    if request.target_servings is not None:
+        if plan.target_servings != request.target_servings:
+            plan.target_servings = request.target_servings
+            # Invalidate lists because quantities changed
+            plan.grocery_list = None
+            plan.prep_plan = None
         
     db.commit()
     db.refresh(plan)
@@ -383,7 +406,7 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
         }
         recipe_dicts.append(r_dict)
         
-    result_text = ai_service.generate_grocery_list(recipe_dicts)
+    result_text = ai_service.generate_grocery_list(recipe_dicts, servings=plan.target_servings)
     
     # Update plan
     # We store it as a simple dict wrapper to match JSON column type
@@ -416,7 +439,7 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
         }
         recipe_dicts.append(r_dict)
         
-    result_text = ai_service.generate_prep_plan(recipe_dicts)
+    result_text = ai_service.generate_prep_plan(recipe_dicts, servings=plan.target_servings)
     
     plan.prep_plan = {"content": result_text}
     db.commit()
@@ -556,7 +579,9 @@ def remove_recipes(plan_id: int, request: schemas.RecipeListRequest, db: Session
     for rid in recipes_to_check:
          usage = db.query(orm.MealPlanRecipe).filter(orm.MealPlanRecipe.recipe_id == rid).count()
          if usage == 0:
-              db.query(orm.Recipe).filter(orm.Recipe.id == rid).delete()
+              recipe_to_del = db.query(orm.Recipe).filter(orm.Recipe.id == rid).first()
+              if recipe_to_del:
+                  db.delete(recipe_to_del)
     
     # Update recipe counts and invalidate lists
     remaining_count = db.query(orm.MealPlanRecipe).filter(orm.MealPlanRecipe.plan_id == plan_id).count()

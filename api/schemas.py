@@ -87,8 +87,10 @@ class PlanGenerateRequest(BaseModel):
     days: Optional[int] = None # If provided, overrides recipe_count logic
     meal_types: List[str] = ["dinner"]
     user_id: Optional[int] = None
-    catalog_id: Optional[int] = None
+    catalog_ids: List[int] = []
     excluded_ingredients: List[str] = []
+    use_cumulative_count: bool = False
+    target_servings: int = 4
 
 class MealPlanRecipe(BaseModel):
     recipe_id: int
@@ -118,6 +120,7 @@ class RecipeAddRequest(BaseModel):
 class PlanUpdateRequest(BaseModel):
     name: Optional[str] = None
     user_id: Optional[int] = None
+    target_servings: Optional[int] = None
 
 class MealPlan(BaseModel):
     id: int
@@ -127,6 +130,7 @@ class MealPlan(BaseModel):
     likes_count: int = 0
     meal_types: Optional[List[str]] = None
     recipe_count: int
+    target_servings: int = 4
     created_at: datetime
     plan_recipes: List[MealPlanRecipe] = []
     grocery_list: Optional[Any] = None

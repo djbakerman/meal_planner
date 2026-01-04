@@ -65,6 +65,20 @@ CREATE TABLE ingredients (
     INDEX idx_recipe (recipe_id)
 );
 
+-- Users (Authentication & RBAC)
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NULL, -- Nullable for Google Auth users
+    role VARCHAR(50) DEFAULT 'user',
+    google_id VARCHAR(255) UNIQUE DEFAULT NULL,
+    avatar_url VARCHAR(500) DEFAULT NULL,
+    preferences JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP
+);
+
 -- Meal Plans
 CREATE TABLE meal_plans (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -73,11 +87,13 @@ CREATE TABLE meal_plans (
     is_public BOOLEAN DEFAULT FALSE,
     meal_types JSON,
     recipe_count INT DEFAULT 5,
+    target_servings INT DEFAULT 4,
     grocery_list JSON,
     prep_plan JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_user (user_id)
+    INDEX idx_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Meal Plan Recipes (junction table)
@@ -89,20 +105,6 @@ CREATE TABLE meal_plan_recipes (
     FOREIGN KEY (plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE,
     FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
     INDEX idx_plan (plan_id)
-);
-
--- Users (simple session auth)
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(100) UNIQUE NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'user',
-    google_id VARCHAR(255) UNIQUE DEFAULT NULL,
-    avatar_url VARCHAR(500) DEFAULT NULL,
-    preferences JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP
 );
 
 -- Sessions

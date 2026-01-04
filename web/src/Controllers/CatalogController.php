@@ -25,7 +25,7 @@ class CatalogController
     public function index(Request $request, Response $response, $args): Response
     {
         // Fetch catalogs from API
-        $catalogs = $this->api->get('/api/catalogs');
+        $catalogs = $this->api->get('/api/catalogs/');
 
         $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'catalogs/index.php', [
@@ -46,9 +46,14 @@ class CatalogController
                 $tempPath = sys_get_temp_dir() . '/' . $filename;
                 $uploadedFile->moveTo($tempPath);
 
+                // Check for enrich flag
+                $enrich = !empty($request->getParsedBody()['enrich']) ? 'true' : 'false';
+
                 // Send to API
                 $result = $this->api->postMultipart('/api/catalogs/import', [
                     'file' => $tempPath
+                ], [
+                    'enrich' => $enrich
                 ]);
 
                 // Cleanup temp file

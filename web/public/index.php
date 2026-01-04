@@ -5,6 +5,22 @@ use Slim\Factory\AppFactory;
 use Slim\Views\PhpRenderer;
 
 if (session_status() === PHP_SESSION_NONE) {
+    // 30 Days in seconds
+    $lifetime = 30 * 24 * 60 * 60;
+
+    // Set server-side GC max lifetime to match (prevents server deleting it)
+    ini_set('session.gc_maxlifetime', (string) $lifetime);
+
+    // Set cookie lifetime
+    session_set_cookie_params([
+        'lifetime' => $lifetime,
+        'path' => '/',
+        'domain' => '', // Current domain
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Strict'
+    ]);
+
     session_start();
 }
 

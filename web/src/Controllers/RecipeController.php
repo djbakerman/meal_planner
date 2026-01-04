@@ -51,7 +51,7 @@ class RecipeController
         $recipes = $this->api->get('/api/recipes', $filters);
 
         // Fetch catalogs for filter
-        $catalogs = $this->api->get('/api/catalogs');
+        $catalogs = $this->api->get('/api/catalogs/');
 
         // Get total count for pagination (simplified for now, ideally API returns metadata)
         // For MVP, we might just check if we got full limit to determine "Next"

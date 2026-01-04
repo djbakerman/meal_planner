@@ -24,11 +24,34 @@
 <div class="row">
     <?php if (empty($plans)): ?>
         <div class="col-12 text-center py-5">
-            <div class="p-5 bg-light rounded-3">
+            <div class="p-5 bg-light rounded-3 border">
                 <div class="display-1 mb-3">🍽️</div>
-                <h2>No plans yet</h2>
-                <p class="lead">Ready to automate your week? Generate your first meal plan now.</p>
-                <a href="<?= url('/plans/new') ?>" class="btn btn-primary">Start Generating</a>
+                <h2>Start Your Kitchen OS</h2>
+                <p class="lead text-muted mb-4">You have no meal plans yet. Let's fix that.</p>
+
+                <div class="row justify-content-center mb-4">
+                    <div class="col-md-8">
+                        <ul class="list-group list-group-horizontal-md justify-content-center small text-start shadow-sm">
+                            <li class="list-group-item border-0 bg-white">
+                                <strong>⚡ Speed</strong><br>Generate a full week in 2 clicks.
+                            </li>
+                            <li class="list-group-item border-0 bg-white">
+                                <strong>🥗 Balance</strong><br>Automate variety in your diet.
+                            </li>
+                            <li class="list-group-item border-0 bg-white">
+                                <strong>🗑️ Zero Waste</strong><br>Shop exactly what you need.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <a href="<?= url('/plans/new') ?>" class="btn btn-primary btn-lg shadow-sm">
+                    ✨ Generate First Plan
+                </a>
+                <div class="mt-3">
+                    <small class="text-muted">Or <a href="<?= url('/recipes') ?>">browse recipes</a> to build a custom
+                        catalog first.</small>
+                </div>
             </div>
         </div>
     <?php else: ?>

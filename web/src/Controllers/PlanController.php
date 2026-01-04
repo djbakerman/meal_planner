@@ -59,22 +59,31 @@ class PlanController
         }
 
         $data = $request->getParsedBody();
-        $name = $data['name'] ?? null;
+        $payload = ['user_id' => $user['id']];
 
-        if (!$name) {
-            $this->session->flash('error', 'Name cannot be empty.');
+        $hasUpdate = false;
+
+        if (!empty($data['name'])) {
+            $payload['name'] = $data['name'];
+            $hasUpdate = true;
+        }
+
+        if (isset($data['target_servings'])) {
+            $payload['target_servings'] = (int) $data['target_servings'];
+            $hasUpdate = true;
+        }
+
+        if (!$hasUpdate) {
+            $this->session->flash('error', 'Nothing to update.');
             return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
         }
 
-        $result = $this->api->patch("/api/plans/{$id}", [
-            'name' => $name,
-            'user_id' => $user['id']
-        ]);
+        $result = $this->api->patch("/api/plans/{$id}", $payload);
 
         if (isset($result['detail'])) {
             $this->session->flash('error', 'Error: ' . $result['detail']);
         } else {
-            $this->session->flash('success', 'Plan renamed.');
+            $this->session->flash('success', 'Plan updated.');
         }
 
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
@@ -179,15 +188,35 @@ class PlanController
             $payload['meal_types'] = [];
         }
 
-        // Optional: Catalog Filter
-        if (!empty($data['catalog_id'])) {
-            $payload['catalog_id'] = (int) $data['catalog_id'];
+        // Optional: Catalog Filter (Support Multiple)
+        if (!empty($data['catalog_ids'])) {
+            // Handle both array and single value
+            $ids = is_array($data['catalog_ids']) ? $data['catalog_ids'] : [$data['catalog_ids']];
+
+            // Filter out empty/"Any" values
+            $valid_ids = array_filter($ids, function ($v) {
+                return !empty($v);
+            });
+
+            if (!empty($valid_ids)) {
+                $payload['catalog_ids'] = array_map('intval', $valid_ids);
+            }
         }
 
         // Optional: Exclusions
         if (!empty($data['excluded_ingredients'])) {
             $exclusions = explode(',', $data['excluded_ingredients']);
             $payload['excluded_ingredients'] = array_map('trim', $exclusions);
+        }
+
+        // Feature: Cumulative Count Mode
+        if (!empty($data['use_cumulative_count'])) {
+            $payload['use_cumulative_count'] = true;
+        }
+
+        // Feature: Target Servings
+        if (!empty($data['target_servings'])) {
+            $payload['target_servings'] = (int) $data['target_servings'];
         }
 
         // Add user_id if authenticated

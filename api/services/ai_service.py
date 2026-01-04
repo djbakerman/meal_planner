@@ -34,13 +34,16 @@ Ingredients:
     
     return "\n".join(formatted)
 
-def generate_grocery_list(recipes: List[dict], model: str = None) -> str:
+def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = None) -> str:
     """
     Generate a consolidated grocery list using AI.
     """
     recipes_text = format_recipes_for_ai(recipes)
     
     prompt = f"""I'm making these {len(recipes)} recipes for my meal plan. Please create a CONSOLIDATED grocery shopping list.
+    
+    Target Servings for the Plan: {servings} people.
+    Note: Some recipes might be for a different number of servings. Please scale ingredient quantities intelligently to match the target of {servings} servings.
 
 IMPORTANT: Combine similar ingredients intelligently. For example:
 - If 3 recipes each need "2 eggs", list "6 eggs" (not "2 eggs" three times)
@@ -53,8 +56,9 @@ Here are the recipes:
 
 Please provide:
 1. A consolidated grocery list organized by store section
-2. Quantities that make sense for shopping (e.g., "1 bunch cilantro" not "2 tablespoons cilantro")
-3. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
+2. Quantities that make sense for shopping.
+3. IMPORTANT: Round up to the nearest whole purchase unit for produce/packaged goods (e.g., buy '1 Onion' not '0.5 Onion', '1 pack' not '0.3 pack'). Use exact measurements for bulk items (flour, rice).
+4. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
 
 Format the list clearly with sections and checkboxes (□)."""
     
@@ -62,13 +66,15 @@ Format the list clearly with sections and checkboxes (□)."""
     response = llm.query_llm(prompt, model=model)
     return response
 
-def generate_prep_plan(recipes: List[dict], model: str = None) -> str:
+def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None) -> str:
     """
     Generate a meal prep plan using AI.
     """
     recipes_text = format_recipes_for_ai(recipes)
     
     prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want to do ALL the prep work in one session so that during the week I just assemble and cook.
+    
+    Target Servings: {servings} people. Scale prep tasks accordingly.
 
 Here are the recipes:
 {recipes_text}

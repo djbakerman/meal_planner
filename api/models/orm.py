@@ -83,6 +83,7 @@ class MealPlan(Base):
     is_public = Column(Boolean, default=False)
     meal_types = Column(JSON)
     recipe_count = Column(Integer, default=5)
+    target_servings = Column(Integer, default=4)
     grocery_list = Column(JSON)
     prep_plan = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

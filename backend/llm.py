@@ -103,7 +103,7 @@ def query_claude(prompt: str, model: str, api_key: str = None,
         return None
 
 def query_llm(prompt: str, model: str = None, api_key: str = None, 
-              images: List[Any] = None) -> Optional[str]:
+              images: List[Any] = None, json_mode: bool = False) -> Optional[str]:
     """Generic wrapper to query either Ollama or Claude."""
     if model is None:
         model = config.DEFAULT_MODEL
@@ -125,7 +125,7 @@ def query_llm(prompt: str, model: str = None, api_key: str = None,
                 elif isinstance(img, str):
                     ollama_images.append(img)
                     
-        return query_ollama(prompt, model, ollama_images)
+        return query_ollama(prompt, model, ollama_images, json_mode=json_mode)
 
 def parse_json_response(response: str) -> Optional[dict]:
     """Safely parse JSON from model response, handling markdown code blocks."""

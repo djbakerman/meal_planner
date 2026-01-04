@@ -1,3 +1,12 @@
+<?php
+// Create a lookup map for catalog names
+$catalogMap = [];
+if (!empty($catalogs)) {
+    foreach ($catalogs as $c) {
+        $catalogMap[$c['id']] = $c['name'];
+    }
+}
+?>
 <div class="row mb-4">
     <div class="col-md-6">
         <h1>🍳 Recipes</h1>
@@ -88,11 +97,13 @@
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if (!empty($recipe['catalog_id'])): ?>
+                            <?php if (!empty($recipe['catalog_id']) && isset($catalogMap[$recipe['catalog_id']])): ?>
                                 <a href="<?= url('/recipes?catalog_id=' . $recipe['catalog_id']) ?>"
                                     class="badge bg-light text-dark text-decoration-none border">
-                                    #<?= $recipe['catalog_id'] ?>
+                                    <?= h($catalogMap[$recipe['catalog_id']]) ?>
                                 </a>
+                            <?php elseif (!empty($recipe['catalog_id'])): ?>
+                                <span class="badge bg-light text-dark border">#<?= $recipe['catalog_id'] ?></span>
                             <?php else: ?>
                                 <span class="text-muted">-</span>
                             <?php endif; ?>
@@ -109,7 +120,16 @@
                             ?>
                             <span class="badge <?= $badgeClass ?>"><?= ucfirst($recipe['meal_type']) ?></span>
                         </td>
-                        <td><?= ucfirst($recipe['dish_role']) ?></td>
+                        <td>
+                            <?php
+                            echo match ($recipe['dish_role']) {
+                                'sub_recipe' => 'Sub-Recipe',
+                                'main' => 'Main Dish',
+                                'side' => 'Side Dish',
+                                default => ucwords(str_replace('_', ' ', $recipe['dish_role']))
+                            };
+                            ?>
+                        </td>
                         <td><?= h($recipe['chapter'] ?? '-') ?></td>
                         <td>
                             <div class="btn-group btn-group-sm">

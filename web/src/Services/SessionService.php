@@ -12,8 +12,12 @@ class SessionService
     public function __construct()
     {
         if (session_status() === PHP_SESSION_NONE) {
-            // Hardened Session Security
+            // Hardened Session Security with 30-day persistence
+            $lifetime = 30 * 24 * 60 * 60;
+            ini_set('session.gc_maxlifetime', (string) $lifetime);
+
             session_start([
+                'cookie_lifetime' => $lifetime,
                 'cookie_httponly' => true,
                 'cookie_secure' => isset($_SERVER['HTTPS']), // Only if HTTPS is on
                 'cookie_samesite' => 'Strict',

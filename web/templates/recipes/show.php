@@ -32,12 +32,21 @@
                         <small class="text-muted d-block uppercase">Cook Time</small>
                         <strong><?= h($recipe['cook_time'] ?: '-') ?></strong>
                     </div>
-                    <div class="col-3 border-end">
-                        <small class="text-muted d-block uppercase">Serves</small>
-                        <strong><?= h($recipe['serves'] ?: '-') ?></strong>
+                    <div class="col-4 border-end">
+                        <small class="text-muted d-block uppercase">Servings</small>
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <?php
+                            $baseServes = (int) ($recipe['serves'] ?: 1);
+                            $targetServes = isset($queryParams['serving_target']) ? (int) $queryParams['serving_target'] : $baseServes;
+                            ?>
+                            <input type="number" id="servingScaler"
+                                class="form-control form-control-sm text-center p-0 fw-bold"
+                                style="width: 40px; height: 24px;" value="<?= $targetServes ?>" min="1" max="50">
+                            <span class="text-muted small">/ <?= $baseServes ?></span>
+                        </div>
                     </div>
-                    <div class="col-3">
-                        <small class="text-muted d-block uppercase">Calories</small>
+                    <div class="col-2">
+                        <small class="text-muted d-block uppercase">Cal</small>
                         <strong><?= h($recipe['calories'] ?: '-') ?></strong>
                     </div>
                 </div>
@@ -71,13 +80,14 @@
 
     <div class="col-lg-4">
         <div class="card shadow-sm mb-4">
-            <div class="card-header bg-success text-white">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Ingredients</h5>
+                <small id="scaleLabel" class="badge bg-white text-success" style="opacity: 0">Scaled</small>
             </div>
-            <ul class="list-group list-group-flush">
+            <ul class="list-group list-group-flush" id="ingredientList">
                 <?php if (!empty($recipe['ingredients'])): ?>
                     <?php foreach ($recipe['ingredients'] as $ing): ?>
-                        <li class="list-group-item">
+                        <li class="list-group-item ingredient-item" data-original="<?= h($ing['ingredient_text']) ?>">
                             <?= h($ing['ingredient_text']) ?>
                         </li>
                     <?php endforeach; ?>
@@ -117,3 +127,56 @@
         <?php endif; ?>
     </div>
 </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const scalerInput = document.getElementById('servingScaler');
+        const ingredientItems = document.querySelectorAll('.ingredient-item');
+        const scaleLabel = document.getElementById('scaleLabel');
+
+        // Store Base Servings from PHP
+        const baseServings = <?= $baseServes ?>;
+
+        function updateIngredients() {
+            const target = parseFloat(scalerInput.value);
+            if (!target || target <= 0) return;
+
+            const ratio = target / baseServings;
+
+            // Visual indicator
+            if (target !== baseServings) {
+                scaleLabel.style.opacity = '1';
+            } else {
+                scaleLabel.style.opacity = '0';
+            }
+
+            ingredientItems.forEach(item => {
+                const originalText = item.dataset.original;
+
+                // Regex to match leading numbers/fractions
+                // Matches: "1", "1.5", "1/2", "1-2", "1 - 2"
+                // We want to replace the FIRST number found at the start.
+
+                // Simplistic Decimal Scaler:
+                // Look for leading float/int
+                const decimalMatch = originalText.match(/^(\d+(\.\d+)?)\s/);
+
+                if (decimalMatch) {
+                    const val = parseFloat(decimalMatch[1]);
+                    const newVal = Math.round((val * ratio) * 100) / 100; // Round to 2 decimals
+                    item.innerText = originalText.replace(decimalMatch[1], newVal);
+                    return;
+                }
+
+                // Allow Fractions? (Bonus, maybe later. For now just decimals)
+                // Just update text color if we can't scale it?
+            });
+        }
+
+        scalerInput.addEventListener('input', updateIngredients);
+
+        // Run once on load if default is different
+        updateIngredients();
+    });
+</script>
