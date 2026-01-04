@@ -2,13 +2,36 @@
 from typing import List, Optional
 from backend import llm
 
-def format_recipes_for_ai(recipes: List[dict]) -> str:
-    """Format recipes for the AI prompt."""
+def parse_servings_str(serves_str: str) -> float:
+    """Extract a numeric serving size from string (e.g., '4', '4-6', 'makes 12')."""
+    try:
+        if not serves_str: return 4.0 # Default
+        import re
+        # Match first number
+        match = re.search(r'(\d+)', str(serves_str))
+        if match:
+            return float(match.group(1))
+    except:
+        pass
+    return 4.0 # Fallback
+
+def format_recipes_for_ai(recipes: List[dict], target_servings: int = None) -> str:
+    """Format recipes for the AI prompt, including explicit scaling factors."""
     formatted = []
     
     for i, recipe in enumerate(recipes, 1):
         name = recipe.get("name", "Unknown")
-        servings = recipe.get("serves", recipe.get("servings", "unknown"))
+        servings_str = recipe.get("serves", recipe.get("servings", "unknown"))
+        
+        # Calculate Ratio
+        scaling_info = ""
+        if target_servings:
+            original_val = parse_servings_str(servings_str)
+            if original_val > 0:
+                ratio = round(target_servings / original_val, 2)
+                if ratio != 1.0:
+                    scaling_info = f"\nSCALING REQUIRED: Target {target_servings} / Original {int(original_val)} = {ratio}x multiplier.\nPLEASE MULTIPLY ALL INGREDIENTS BY {ratio}."
+        
         # DB 'ingredients' are list of objects with 'ingredient_text'
         ingredients = recipe.get("ingredients", [])
         
@@ -16,18 +39,16 @@ def format_recipes_for_ai(recipes: List[dict]) -> str:
         ing_list = []
         for ing in ingredients:
             if isinstance(ing, dict):
-                # Handle DB model dict or original JSON dict
                 text = ing.get("ingredient_text", ing.get("item", str(ing))) 
                 ing_list.append(f"  - {text}")
             elif hasattr(ing, "ingredient_text"):
-                # Handle SQLAlchemy object
                 ing_list.append(f"  - {ing.ingredient_text}")
             else:
                 ing_list.append(f"  - {ing}")
         
         formatted.append(f"""
 Recipe {i}: {name}
-Servings: {servings}
+Original Servings: {servings_str}{scaling_info}
 Ingredients:
 {chr(10).join(ing_list)}
 """)
@@ -38,7 +59,7 @@ def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = N
     """
     Generate a consolidated grocery list using AI.
     """
-    recipes_text = format_recipes_for_ai(recipes)
+    recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
     
     prompt = f"""I'm making these {len(recipes)} recipes for my meal plan. Please create a CONSOLIDATED grocery shopping list.
     
@@ -70,7 +91,7 @@ def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None
     """
     Generate a meal prep plan using AI.
     """
-    recipes_text = format_recipes_for_ai(recipes)
+    recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
     
     prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want to do ALL the prep work in one session so that during the week I just assemble and cook.
     
