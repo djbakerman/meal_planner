@@ -13,6 +13,16 @@
     <link href="<?= url('/assets/css/app.css') ?>" rel="stylesheet">
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.4"></script>
+
+    <!-- Social / Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<?= h($title ?? 'Meal Planner') ?> | Dan's Meal Planner">
+    <meta property="og:description"
+        content="Digitize cookbooks, organize recipes, and generate automated meal plans with AI.">
+    <meta property="og:image" content="<?= url('/assets/images/logo.png') ?>">
+    <meta property="og:url"
+        content="<?= (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'] ?>">
+    <meta name="twitter:card" content="summary_large_image">
 </head>
 
 <body>
