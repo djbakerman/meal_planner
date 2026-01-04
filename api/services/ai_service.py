@@ -78,11 +78,10 @@ Here are the recipes:
 Please provide:
 1. A consolidated grocery list organized by store section
 2. Quantities that make sense for shopping.
-3. IMPORTANT: Round numbers cleanly.
-- Use fractions for volume (e.g., "½ cup", "1⅓ tbsp") instead of decimals ("0.5 cup", "1.33 tbsp").
-- Round awkward scaling results (e.g., if math gives 0.34 limes, say "½ lime" or "1 wedge").
-- If the amount is tiny (< ⅛ tsp), use "a pinch" or "to taste".
-- For produce, round up to whole units (e.g., 1 onion, not 0.8 onion).
+3. IMPORTANT: Round numbers cleanly (Kitchen Style).
+   - 🔴 NO DECIMALS: "0.33 cup" -> "⅓ cup", "0.04 tsp" -> "tiny pinch".
+   - 🔴 NO MATH: Do not show multiplication (e.g. "(0.17x 6 eggs)").
+   - 🟢 ROUND UP: "0.80 onions" -> "1 onion", "0.34 limes" -> "½ lime".
 
 4. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
 
@@ -164,7 +163,21 @@ FORMAT:
 - Day 2: Recipe Y...
 
 FORMATTING RULES:
-- When scaling amounts based on servings, ROUND to clean human-friendly fractions (e.g. "½ tsp", not "0.33 tsp"; "2 limes", not "1.66 limes", "1 onion" not "0.8 onion").
+1. **NO DECIMALS**: Convert all decimals to standard fractions.
+   - 0.33 or 0.34 → "⅓"
+   - 0.66 or 0.67 → "⅔"
+   - 0.25 → "¼"
+   - 0.125 or 0.13 → "⅛"
+   - 0.16 or 0.17 → "⅙" or "roughly ⅙"
+   - 0.04 → "tiny pinch"
+
+2. **NO MATH**: Do NOT show your calculations in the output.
+   - 🔴 BAD: "0.34 lbs (0.17x 2 lbs)"
+   - 🟢 GOOD: "⅓ lb"
+   
+3. **ROUND SMARTLY**:
+   - "0.34 onions" -> "½ onion" (nobody buys 0.34 onions)
+   - "0.80 limes" -> "1 lime"
 """
 
     return llm.query_llm(prompt, model=model)
