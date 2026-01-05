@@ -41,13 +41,14 @@ def read_recipes(
         
     if search:
         search_term = f"%{search}%"
-        query = query.filter(
+        query = query.outerjoin(orm.Ingredient).filter(
             or_(
                 orm.Recipe.name.ilike(search_term),
                 orm.Recipe.description.ilike(search_term),
-                orm.Recipe.chapter.ilike(search_term)
+                orm.Recipe.chapter.ilike(search_term),
+                orm.Ingredient.ingredient_text.ilike(search_term)
             )
-        )
+        ).distinct()
         
     recipes = query.order_by(orm.Recipe.name).offset(skip).limit(limit).all()
     return recipes
