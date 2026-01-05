@@ -7,7 +7,7 @@ from api.database import get_db
 from api.models import orm
 
 router = APIRouter(
-    prefix="/ingredients",
+    prefix="/api/ingredients",
     tags=["ingredients"]
 )
 
