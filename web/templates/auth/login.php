@@ -4,6 +4,13 @@
             <div class="card-body p-4">
                 <h2 class="text-center mb-4">Login</h2>
 
+                <div class="alert alert-info text-center mb-4">
+                    <small>
+                        <strong>Note:</strong> Access to our recipe library and meal planning tools requires a secure
+                        login.
+                    </small>
+                </div>
+
                 <form action="<?= url('/login') ?>" method="POST">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address</label>

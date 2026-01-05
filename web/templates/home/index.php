@@ -42,7 +42,8 @@
                     <div class="card-body">
                         <h5 class="card-title">🍲 Browse Recipes</h5>
                         <p class="card-text">View and manage your digitized recipes from cookbooks.</p>
-                        <a href="<?= url('/recipes') ?>" class="btn btn-primary">Browse Recipes</a>
+                        <a href="<?= url('/recipes') ?>" class="btn btn-primary">Browse Recipes <small
+                                class="text-light opacity-75">(Login Required)</small></a>
                     </div>
                 </div>
             </div>

@@ -13,7 +13,9 @@
                     <div>
                         <h2 class="h3 fw-bold mb-3">Manage Catalogs</h2>
                         <p>Your journey starts with recipes. Use <strong>Catalogs</strong> to organize recipes from
-                            different sources (e.g., "Web Scrape", "Grandma's Cookbook").</p>
+                            different sources (e.g., "Web Scrape", "Grandma's Cookbook").
+                            <br><span class="badge bg-info text-dark mt-2">Note: Login required to view/edit</span>
+                        </p>
                         <ul class="list-unstyled">
                             <li class="mb-2">✅ <strong>Import:</strong> Upload <code>.json</code> recipe files directly
                                 on the <a href="<?= url('/catalogs') ?>">Catalogs page</a>.</li>
