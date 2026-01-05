@@ -20,7 +20,7 @@ class SessionService
                 'cookie_lifetime' => $lifetime,
                 'cookie_httponly' => true,
                 'cookie_secure' => isset($_SERVER['HTTPS']), // Only if HTTPS is on
-                'cookie_samesite' => 'Strict',
+                'cookie_samesite' => 'Lax',
                 'use_strict_mode' => true,
             ]);
         }

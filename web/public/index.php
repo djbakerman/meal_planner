@@ -18,7 +18,7 @@ if (session_status() === PHP_SESSION_NONE) {
         'domain' => '', // Current domain
         'secure' => isset($_SERVER['HTTPS']),
         'httponly' => true,
-        'samesite' => 'Strict'
+        'samesite' => 'Lax'
     ]);
 
     session_start();

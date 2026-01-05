@@ -106,22 +106,22 @@ class AuthController
 
         if (strlen($username) < 3) {
             $this->session->flash('error', 'Username must be at least 3 characters.');
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->session->flash('error', 'Please enter a valid email address.');
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         if (strlen($password) < 6) {
             $this->session->flash('error', 'Password must be at least 6 characters.');
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         if ($password !== $confirmPassword) {
             $this->session->flash('error', 'Passwords do not match.');
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         $result = $this->apiClient->post('api/auth/register', [
@@ -133,7 +133,7 @@ class AuthController
         if (isset($result['error']) || !isset($result['success']) || !$result['success']) {
             $error = $result['detail'] ?? $result['error'] ?? 'Registration failed. Please try again.';
             $this->session->flash('error', $error);
-            return $response->withHeader('Location', '/register')->withStatus(302);
+            return $response->withHeader('Location', url('/register'))->withStatus(302);
         }
 
         // Auto-login after registration
@@ -229,7 +229,12 @@ class AuthController
             // 4. Success
             $this->session->set('user', $result['user']);
             $this->session->flash('success', "Welcome, {$result['user']['username']}!");
-            return $response->withHeader('Location', url('/'))->withStatus(302);
+
+            // Redirect to intended URL or home
+            $redirect = $this->session->get('redirect_after_login', url('/'));
+            $this->session->remove('redirect_after_login');
+
+            return $response->withHeader('Location', $redirect)->withStatus(302);
 
         } catch (\Exception $e) {
             $this->session->flash('error', 'Google login error: ' . $e->getMessage());
