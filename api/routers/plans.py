@@ -118,7 +118,12 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     for r in selected_recipes:
         # Check sub_recipes JSON field: ["Name of Sub 1", "Name of Sub 2"]
         if r.sub_recipes:
-            for sub_name in r.sub_recipes:
+            for sub_item in r.sub_recipes:
+                # Handle potential object structure in JSON
+                sub_name = sub_item.get('name') if isinstance(sub_item, dict) else sub_item
+                
+                if not isinstance(sub_name, str):
+                    continue
                 # Find this sub-recipe
                 # Ideally look in same catalog, or globally?
                 # Let's try globally for now, or prefer same catalog
