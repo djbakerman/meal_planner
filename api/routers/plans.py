@@ -22,14 +22,16 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     """
     selected_recipes = []
     
+    # Prepare exclusions list for all modes
+    exclusions = [e.strip().lower() for e in request.excluded_ingredients.split(',')] if request.excluded_ingredients else []
+    
     # If use_cumulative_count is True, we want TOTAL recipes mixed from types
     if request.use_cumulative_count:
         # Cumulative Mode
         # Target total is days (if set) or recipe_count
         target_total = request.days if request.days and request.days > 0 else request.recipe_count
         
-        # Prepare exclusions list
-        exclusions = [e.strip().lower() for e in request.excluded_ingredients.split(',')] if request.excluded_ingredients else []
+
 
         # Build query for ALL selected types
         query = db.query(orm.Recipe)
