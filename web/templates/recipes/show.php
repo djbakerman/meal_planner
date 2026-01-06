@@ -5,7 +5,11 @@
                 Meal
                 Plan</a>
         <?php else: ?>
-            <a href="<?= url('/recipes') ?>" class="btn btn-outline-secondary">&larr; Back to Recipes</a>
+            <?php
+            $backParams = array_intersect_key($queryParams, array_flip(['search', 'meal_type', 'dish_role', 'catalog_id', 'page']));
+            $backUrl = url('/recipes') . (!empty($backParams) ? '?' . http_build_query($backParams) : '');
+            ?>
+            <a href="<?= $backUrl ?>" class="btn btn-outline-secondary">&larr; Back to Recipes</a>
         <?php endif; ?>
     </div>
 </div>
@@ -162,7 +166,7 @@
 
             // Simple Logic: If < 0.25 cup (approx 4 tbsp), switch to Tbsp
             // If < 1 tbsp, switch to Tsp
-            
+
             if (unitKey.includes('cup') && amount < 0.25) {
                 const tbsp = totalMl / units['tbsp'];
                 // Only switch if it's a nice number (whole or 0.5)
@@ -170,7 +174,7 @@
                     return { amount: parseFloat(tbsp.toFixed(1)), unit: 'tbsp' };
                 }
             }
-            
+
             return { amount: parseFloat(amount.toFixed(2)), unit: currentUnit };
         }
 
@@ -261,20 +265,20 @@
                     const val = parseQuantity(numberStr);
                     if (!isNaN(val) && val > 0) {
                         const newVal = val * ratio;
-                        
+
                         // Smart Unit Conversion
                         // Extract suffix (rest of string)
                         const suffix = originalText.substring(match[0].length).trim();
                         // Try to find the first word as the unit
                         const unitMatch = suffix.match(/^([a-zA-Z.]+)\s/);
-                        
+
                         let finalVal = newVal;
                         let finalSuffix = suffix;
 
                         if (unitMatch) {
                             const originalUnit = unitMatch[1];
                             const optimized = optimizeUnit(newVal, originalUnit);
-                            
+
                             finalVal = optimized.amount;
                             if (optimized.unit !== originalUnit) {
                                 // Replace the unit in the suffix
