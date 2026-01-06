@@ -20,7 +20,7 @@ class DensitySchema(BaseModel):
     notes: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 @router.get("/density", response_model=List[DensitySchema])
 def get_ingredient_densities(db: Session = Depends(get_db)):
