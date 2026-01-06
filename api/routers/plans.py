@@ -23,7 +23,7 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     selected_recipes = []
     
     # Prepare exclusions list for all modes
-    exclusions = [e.strip().lower() for e in request.excluded_ingredients.split(',')] if request.excluded_ingredients else []
+    exclusions = [e.strip().lower() for e in request.excluded_ingredients] if request.excluded_ingredients else []
     
     # If use_cumulative_count is True, we want TOTAL recipes mixed from types
     if request.use_cumulative_count:
