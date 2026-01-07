@@ -97,6 +97,22 @@
 
                     <!-- Unified Toolbar -->
                     <div class="card bg-light border-0 mb-3 p-3">
+                        <!-- Active Exclusions Logic -->
+                        <?php if (!empty($plan['excluded_ingredients'])): ?>
+                            <div class="mb-3">
+                                <small class="text-uppercase text-muted fw-bold"
+                                    style="font-size: 0.75rem; letter-spacing: 1px;">Active Exclusions</small>
+                                <div class="d-flex flex-wrap gap-2 mt-1">
+                                    <?php foreach ($plan['excluded_ingredients'] as $ex): ?>
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill"
+                                            title="These ingredients are strictly excluded from all swaps and regenerations.">
+                                            🚫 <?= h(ucfirst($ex)) ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="d-flex justify-content-between align-items-center">
 
                             <!-- LEFT: Add Actions -->
@@ -152,13 +168,18 @@
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
-                                            <button type="submit" name="mode" value="similar" class="dropdown-item">
-                                                ✨ Swap Similar
+                                            <button type="submit" name="mode" value="quick" class="dropdown-item">
+                                                ⚡ <strong>Quick Swap</strong> <span class="text-muted small ms-2">(Default)</span>
                                             </button>
                                         </li>
                                         <li>
-                                            <button type="submit" name="mode" value="random" class="dropdown-item">
-                                                🎲 Swap Random
+                                            <button type="submit" name="mode" value="similar" class="dropdown-item">
+                                                🧠 Find Similar
+                                            </button>
+                                        </li>
+                                         <li>
+                                            <button type="submit" name="mode" value="flexible" class="dropdown-item">
+                                                🧩 Be Flexible <span class="text-muted small ms-2">(Ignore Type)</span>
                                             </button>
                                         </li>
                                         <?php if (!empty($catalogs)): ?>
@@ -166,7 +187,7 @@
                                                 <hr class="dropdown-divider">
                                             </li>
                                             <li>
-                                                <h6 class="dropdown-header">📖 Swap Using Catalog</h6>
+                                                <h6 class="dropdown-header">📖 Pick from Catalog</h6>
                                             </li>
                                             <?php foreach ($catalogs as $cat): ?>
                                                 <li>

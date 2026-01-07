@@ -8,6 +8,7 @@ from datetime import datetime
 from api.database import get_db
 from api.models import orm
 from api import schemas
+from api.utils.filters import normalize_exclusions, apply_exclusions
 
 router = APIRouter(
     prefix="/api/plans",
@@ -164,13 +165,16 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
         plan_name = f"Plan {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
     # Create MealPlan object
+    clean_exclusions = normalize_exclusions(request.excluded_ingredients) if request.excluded_ingredients else []
+    
     new_plan = orm.MealPlan(
         name=plan_name,
         recipe_count=len(selected_recipes),
         meal_types=request.meal_types,
         target_servings=request.target_servings,
         user_id=request.user_id,
-        created_at=datetime.now()
+        created_at=datetime.now(),
+        excluded_ingredients=clean_exclusions
     )
     db.add(new_plan)
     db.flush()
@@ -487,16 +491,23 @@ def swap_recipes(plan_id: int, request: schemas.SwapRequest, db: Session = Depen
         # Find candidates: Not in current plan
         query = db.query(orm.Recipe).filter(orm.Recipe.id.notin_(current_recipe_ids))
 
-        # Enforce Meal Type Strictness ONLY if:
-        # 1. Plan has specific meal types defined
-        # 2. AND we are NOT in 'catalog' mode (catalog mode implies "I want anything from this book")
+        # Enforce Meal Type Strictness based on Mode
+        # Modes: 
+        # - quick (default): Strict Meal Type + Strict Exclusions
+        # - similar: Strict Meal Type + Strict Exclusions + AI Match
+        # - flexible: Flexible Meal Type (Ignore) + Strict Exclusions
+        # - catalog: Manual, Flexible Meal Type + Strict Exclusions (User selection from catalog)
+        
+        # Determine constraints
+        enforce_type = True
+        if request.mode == "flexible" or request.mode == "catalog":
+            enforce_type = False
+        
+        # Plan-level meal types constraint (exists only if plan has types)
         plan_has_types = bool(plan.meal_types)
-        is_catalog_mode = (request.mode == "catalog")
         
-        if plan_has_types and not is_catalog_mode:
+        if plan_has_types and enforce_type:
              query = query.filter(orm.Recipe.meal_type == target_recipe.meal_type)
-        
-        # Apply catalog filter if mode is 'catalog'
         
         # Apply catalog filter if mode is 'catalog'
         if request.mode == "catalog" and request.catalog_id:
@@ -504,14 +515,20 @@ def swap_recipes(plan_id: int, request: schemas.SwapRequest, db: Session = Depen
         
         candidates = query.all()
         
+        # --- APPLY EXCLUSIONS (CRITICAL FIX) ---
+        # We now persist exclusions in the plan, so load them
+        # Default to strict enforcement for ALL modes (safety first)
+        exclusions = plan.excluded_ingredients or []
+        candidates = apply_exclusions(candidates, exclusions)
+        
         if not candidates:
-            continue # No substitutes available
+            # Better error handling? 
+            # For now, we skip, but UI should ideally know if swap failed
+            continue 
             
         new_recipe = None
         
-        if request.mode == "random" or request.mode == "catalog":
-            new_recipe = random.choice(candidates)
-        elif request.mode == "similar":
+        if request.mode == "similar":
             # Use AI to find best match
             # Convert candidates to dicts
             candidate_dicts = []
@@ -534,9 +551,14 @@ def swap_recipes(plan_id: int, request: schemas.SwapRequest, db: Session = Depen
             if best_id:
                 new_recipe = db.query(orm.Recipe).filter(orm.Recipe.id == best_id).first()
             
-            # Fallback to random if AI fails or returns nothing
+            # Fallback to random if AI fails
             if not new_recipe:
                  new_recipe = random.choice(candidates)
+                 
+        else:
+            # Modes: quick, flexible, catalog -> all use random from the filtered pool
+            # (Catalog is "random from specific book", Quick/Flexible is "random from allowed types")
+            new_recipe = random.choice(candidates)
                  
         if new_recipe:
             # Execute Swap

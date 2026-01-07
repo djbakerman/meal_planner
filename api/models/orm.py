@@ -84,6 +84,7 @@ class MealPlan(Base):
     meal_types = Column(JSON)
     recipe_count = Column(Integer, default=5)
     target_servings = Column(Integer, default=4)
+    excluded_ingredients = Column(JSON, default=list, nullable=False)
     grocery_list = Column(JSON)
     prep_plan = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
