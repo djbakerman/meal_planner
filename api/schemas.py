@@ -133,6 +133,7 @@ class MealPlan(BaseModel):
     target_servings: int = 4
     created_at: datetime
     plan_recipes: List[MealPlanRecipe] = []
+    excluded_ingredients: List[str] = []
     grocery_list: Optional[Any] = None
     prep_plan: Optional[Any] = None
 
