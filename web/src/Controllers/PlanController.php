@@ -232,7 +232,16 @@ class PlanController
         }
 
         // Error handling
-        return $response->withHeader('Location', url('/plans/new?error=failed'))->withStatus(302);
+        if (isset($newPlan['detail'])) {
+            $msg = is_string($newPlan['detail']) ? $newPlan['detail'] : json_encode($newPlan['detail']);
+            $this->session->flash('error', "API Error: " . $msg);
+        } elseif (isset($newPlan['error'])) {
+            $this->session->flash('error', "System Error: " . $newPlan['error']);
+        } else {
+            $this->session->flash('error', "Failed to generate plan (Unknown error).");
+        }
+
+        return $response->withHeader('Location', url('/plans/new'))->withStatus(302);
     }
 
     public function show(Request $request, Response $response, $args): Response

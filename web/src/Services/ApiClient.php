@@ -81,8 +81,10 @@ class ApiClient
             ]);
             return json_decode($response->getBody(), true);
         } catch (RequestException $e) {
+            error_log("API POST Error: " . $e->getMessage());
             if ($e->hasResponse()) {
                 $body = $e->getResponse()->getBody()->getContents();
+                error_log("API Body: " . $body);
                 $json = json_decode($body, true);
                 if ($json)
                     return $json;
