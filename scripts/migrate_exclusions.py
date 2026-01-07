@@ -55,9 +55,7 @@ def apply_migration():
             
     except Exception as e:
         print(f"Migration Failed: {e}")
-    finally:
-        if 'conn' in locals() and conn.open:
-            conn.close()
+    # Connection is automatically closed by the context manager 'with engine.connect() as conn'
 
 if __name__ == "__main__":
     apply_migration()
