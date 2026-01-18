@@ -1,12 +1,12 @@
 
 from typing import List, Optional
+import re
 from backend import llm
 
 def parse_servings_str(serves_str: str) -> float:
     """Extract a numeric serving size from string (e.g., '4', '4-6', 'makes 12')."""
     try:
         if not serves_str: return 4.0 # Default
-        import re
         # Match first number
         match = re.search(r'(\d+)', str(serves_str))
         if match:
@@ -14,6 +14,56 @@ def parse_servings_str(serves_str: str) -> float:
     except:
         pass
     return 4.0 # Fallback
+
+def scale_quantity(text: str, ratio: float) -> str:
+    """
+    Scale numbers in the ingredient text by the given ratio.
+    Handles integers, decimals, and simple fractions (1/2, 1/4).
+    """
+    if ratio == 1.0:
+        return text
+
+    # Regex to find numbers: 
+    # 1. Fractions: \d+\s*/\s*\d+
+    # 2. Decimals/Integers: \d+(?:\.\d+)?
+    # We use a pattern that captures these. 
+    # Note: simple replacement of all numbers might affect things like "7up" or "V8", 
+    # but in ingredient context, usually numbers are quantities.
+    
+    pattern = r'(?P<frac>\d+\s*/\s*\d+)|(?P<num>\d+(?:\.\d+)?)'
+    
+    def replace(match):
+        g = match.groupdict()
+        val = 0.0
+        is_float = False
+        
+        if g['frac']:
+            try:
+                num, den = g['frac'].split('/')
+                val = float(num) / float(den)
+                is_float = True # Fractions become floats after scaling usually
+            except:
+                return match.group(0)
+        elif g['num']:
+            val = float(g['num'])
+            is_float = '.' in g['num']
+
+        new_val = val * ratio
+        
+        # Format back
+        # If it was an integer and result is close to integer, keep as int
+        if abs(new_val - round(new_val)) < 0.05:
+            return str(int(round(new_val)))
+        else:
+            # Return as formatted float, max 2 decimals to keep it clean
+            # The LLM is asked to clean up decimals later anyway
+            return f"{new_val:.2f}".rstrip('0').rstrip('.')
+
+    try:
+        return re.sub(pattern, replace, text)
+    except Exception as e:
+        # Fallback if anything goes wrong, return original
+        return text
 
 def format_recipes_for_ai(recipes: List[dict], target_servings: int = None) -> str:
     """Format recipes for the AI prompt, including explicit scaling factors."""
@@ -24,13 +74,15 @@ def format_recipes_for_ai(recipes: List[dict], target_servings: int = None) -> s
         servings_str = recipe.get("serves", recipe.get("servings", "unknown"))
         
         # Calculate Ratio
-        scaling_info = ""
+        ratio = 1.0
+        scaling_note = ""
+        
         if target_servings:
             original_val = parse_servings_str(servings_str)
             if original_val > 0:
                 ratio = round(target_servings / original_val, 2)
                 if ratio != 1.0:
-                    scaling_info = f"\nSCALING REQUIRED: Target {target_servings} / Original {int(original_val)} = {ratio}x multiplier.\nPLEASE MULTIPLY ALL INGREDIENTS BY {ratio}."
+                    scaling_note = f" [Scaled from {int(original_val)} servings]"
         
         # DB 'ingredients' are list of objects with 'ingredient_text'
         ingredients = recipe.get("ingredients", [])
@@ -38,17 +90,20 @@ def format_recipes_for_ai(recipes: List[dict], target_servings: int = None) -> s
         # Format ingredients
         ing_list = []
         for ing in ingredients:
+            text = ""
             if isinstance(ing, dict):
                 text = ing.get("ingredient_text", ing.get("item", str(ing))) 
-                ing_list.append(f"  - {text}")
             elif hasattr(ing, "ingredient_text"):
-                ing_list.append(f"  - {ing.ingredient_text}")
+                text = ing.ingredient_text
             else:
-                ing_list.append(f"  - {ing}")
+                text = str(ing)
+            
+            # Apply Scaling
+            scaled_text = scale_quantity(text, ratio)
+            ing_list.append(f"  - {scaled_text}")
         
         formatted.append(f"""
-Recipe {i}: {name}
-Original Servings: {servings_str}{scaling_info}
+Recipe {i}: {name}{scaling_note}
 Ingredients:
 {chr(10).join(ing_list)}
 """)
@@ -59,17 +114,21 @@ def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = N
     """
     Generate a consolidated grocery list using AI.
     """
+    # Recipes are now pre-scaled by format_recipes_for_ai
     recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
     
     prompt = f"""I'm making these {len(recipes)} recipes for my meal plan. Please create a CONSOLIDATED grocery shopping list.
     
     Target Servings for the Plan: {servings} people.
-    Note: Some recipes might be for a different number of servings. Please scale ingredient quantities intelligently to match the target of {servings} servings.
+    
+    NOTE: The ingredients listed below have ALREADY been scaled to the target servings. 
+    You do NOT need to do any math scaling. 
+    Your job is to CONSOLIDATE duplicates.
 
 IMPORTANT: Combine similar ingredients intelligently. For example:
-- If 3 recipes each need "2 eggs", list "6 eggs" (not "2 eggs" three times)
-- If 2 recipes need bread for sandwiches, list "1 loaf bread" (not "bread" twice)
-- If multiple recipes need chicken breast, estimate total pounds needed
+- If 3 recipes each need "2 eggs", list "6 eggs" (NOT "2 eggs" three times)
+- If 2 recipes need bread for sandwiches, list "1 loaf bread"
+- If multiple recipes need chicken breast, sum the quantities found
 - Group ingredients by store section (Produce, Meat, Dairy, Pantry, etc.)
 
 Here are the recipes:
@@ -80,8 +139,7 @@ Please provide:
 2. Quantities that make sense for shopping.
 3. IMPORTANT: Round numbers cleanly (Kitchen Style).
    - 🔴 NO DECIMALS: "0.33 cup" -> "⅓ cup", "0.04 tsp" -> "tiny pinch".
-   - 🔴 NO MATH: Do not show multiplication (e.g. "(0.17x 6 eggs)").
-   - 🟢 ROUND UP: "0.80 onions" -> "1 onion", "0.34 limes" -> "½ lime".
+   - 🟢 ROUND UP/SMOOTH: "0.80 onions" -> "1 onion", "0.34 limes" -> "½ lime".
 
 4. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
 
@@ -95,11 +153,13 @@ def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None
     """
     Generate a meal prep plan using AI.
     """
+    # Recipies pre-scaled
     recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
     
     prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want to do ALL the prep work in one session so that during the week I just assemble and cook.
     
-    Target Servings: {servings} people. Scale prep tasks accordingly.
+    Target Servings: {servings} people.
+    NOTE: Ingredients below are ALREADY scaled to this target.
 
 Here are the recipes:
 {recipes_text}
@@ -187,7 +247,8 @@ def find_substitute(target_recipe: dict, candidates: List[dict], model: str = No
     Identify the best substitute from candidates for the target recipe.
     Returns the ID of the best candidate.
     """
-    candidates_text = format_recipes_for_ai(candidates)
+    # No scaling for substitution matching
+    candidates_text = format_recipes_for_ai(candidates, target_servings=None)
     
     prompt = f"""I need to swap out a recipe in my meal plan: "{target_recipe.get('name')}".
     
@@ -227,7 +288,8 @@ def generate_plan_name(recipes: List[dict], model: str = None) -> str:
     """
     Generate a creative name for the meal plan based on its recipes.
     """
-    recipes_text = format_recipes_for_ai(recipes)
+    # No scaling for naming
+    recipes_text = format_recipes_for_ai(recipes, target_servings=None)
     
     prompt = f"""Create a catchment, short, fun name for a meal plan containing these recipes:
 {recipes_text}
