@@ -78,6 +78,54 @@ $routes = require __DIR__ . '/../config/routes.php';
 $routes($app);
 
 // Add Error Middleware
-$app->addErrorMiddleware(true, true, true);
+$debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$errorMiddleware = $app->addErrorMiddleware($debug, true, true);
+
+// Custom Error Handler for 405 Method Not Allowed
+// This handles cases where a session times out and a POST request (e.g. Generation) 
+// is redirected/reloaded as GET, or simply fails auth checks in a way that routing catches first.
+$errorMiddleware->setErrorHandler(
+    Slim\Exception\HttpMethodNotAllowedException::class,
+    function ($request, $exception, $displayErrorDetails) use ($app) {
+        // Check if session is expired/missing
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        $user = $_SESSION['user'] ?? null;
+        
+        $response = $app->getResponseFactory()->createResponse();
+
+        if (!$user) {
+             // Session expired: Redirect to login
+             // We can also flash a message if we want, but simple redirect is robust
+             if (isset($_SESSION)) {
+                 $_SESSION['flash'] = ['type' => 'warning', 'message' => 'Session expired. Please login again.'];
+             }
+             return $response->withHeader('Location', url('/login'))->withStatus(302);
+        }
+        
+        // Use custom error page for logged-in users
+        $html = '<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>405 Method Not Allowed</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+        <body class="bg-light d-flex align-items-center justify-content-center vh-100">
+            <div class="text-center">
+                <h1 class="display-1 fw-bold text-secondary">405</h1>
+                <p class="fs-3"> <span class="text-danger">Opps!</span> Method Not Allowed.</p>
+                <p class="lead">
+                    The action you tried to perform is not allowed directly.
+                </p>
+                <a href="'.url('/plans').'" class="btn btn-primary">Go Home</a>
+            </div>
+        </body>
+        </html>';
+        
+        $response->getBody()->write($html);
+        return $response->withStatus(405);
+    }
+);
 
 $app->run();
