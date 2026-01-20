@@ -192,31 +192,34 @@ IMPORTANT PRINCIPLES:
    - Group by cutting board (veggies first, then meat)
    - End with items that are quick or need to stay fresh
 
+6. FORMAT AS A CHECKLIST:
+   - Use checkboxes (□) for all actionable tasks so I can check them off as I go.
+
 FORMAT:
 📋 MEAL PREP SESSION PLAN
 
 ⏱️ ESTIMATED TOTAL PREP TIME: X minutes
 
 🥩 PROTEINS (do these first for marinating time)
-- Task 1 (for Recipe X, Y)
-- Task 2...
+- □ Task 1 (for Recipe X, Y)
+- □ Task 2...
 
 🔪 CHOPPING & DICING  
-- Onions: chop X total (for Recipe A, B, C) - store in airtight container, fridge 5 days
-- Garlic: mince X cloves total...
+- □ Onions: chop X total (for Recipe A, B, C) - store in airtight container, fridge 5 days
+- □ Garlic: mince X cloves total...
 - etc.
 
 🥣 SAUCES, MARINADES & SPICE MIXES
-- Make X sauce (for Recipe Y) - store in jar, fridge 1 week
-- Mix spice rub for... 
+- □ Make X sauce (for Recipe Y) - store in jar, fridge 1 week
+- □ Mix spice rub for... 
 - etc.
 
 📦 STORAGE CONTAINERS NEEDED
-- X small containers for...
-- X medium containers for...
+- □ X small containers for...
+- □ X medium containers for...
 
 ⚠️ DAY-OF PREP (don't do ahead)
-- Items that should wait...
+- □ Items that should wait...
 
 🗓️ SUGGESTED COOK ORDER FOR THE WEEK
 - Day 1: Recipe X (needs longest marinating)
