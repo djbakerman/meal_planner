@@ -418,7 +418,8 @@ Extract ALL recipes shown. For EACH recipe provide this JSON format:
             "sub_recipes": [
                 {{
                     "name": "name of sub-recipe like 'Sriracha Vinaigrette' or 'Barbecue Ranch Dressing'",
-                    "ingredients": ["ingredient 1", "ingredient 2"]
+                    "ingredients": ["ingredient 1", "ingredient 2"],
+                    "instructions": ["preparation steps for the sub-recipe"]
                 }}
             ],
             "instructions": [
@@ -451,10 +452,18 @@ CRITICAL:
 - Short recipes (just a few ingredients and steps) are common - don't skip them
 - Look for recipe TITLES/HEADINGS - each heading marks a new recipe
 - Include ALL ingredients for EACH recipe
-- Include sub-recipes (dressings, sauces, vinaigrettes) with their own ingredient lists
 - Look for VARIATION TIP, DIY, or SUBSTITUTION notes at the bottom
 - dietary_info should ONLY contain tags like DAIRY-FREE, VEGAN, GLUTEN-FREE - NOT calories or macros
 - Put calorie/protein/carb/fat numbers in their respective fields
+
+SUB-RECIPES ARE CRITICAL - DO NOT MISS THEM:
+- Sub-recipes are dressings, vinaigrettes, sauces, marinades shown WITHIN a main recipe
+- They are often in COLORED BOXES or SHADED SECTIONS (gray, olive, tan backgrounds)
+- They have their OWN name (e.g., "Cilantro-Lime Vinaigrette", "Kalamata Feta Vinaigrette", "Barbecue Ranch Dressing")
+- They have their OWN ingredient list
+- They may have their OWN instructions
+- Put these in the "sub_recipes" array of the PARENT recipe, NOT as separate recipes
+- Example: "Cilantro-Lime Avocado Shrimp Salad" should have sub_recipes: [{{name: "Cilantro-Lime Vinaigrette", ingredients: [...]}}]
 
 COMPLETION RULES (is_complete):
 Set is_complete=FALSE if ANY of these are true:
@@ -1925,7 +1934,7 @@ def check_model_available(model: str, api_key: str = None) -> bool:
     """Check if the specified model is available (Ollama or Claude)."""
     
     # Check if it's a Claude model
-    is_claude = any(claude_model in model for claude_model in CLAUDE_VISION_MODELS) or model.startswith("claude-")
+    is_claude = any(claude_model in model for claude_model in config.CLAUDE_VISION_MODELS) or model.startswith("claude-")
     
     if is_claude:
         if not api_key:

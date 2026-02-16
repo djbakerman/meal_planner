@@ -107,7 +107,27 @@ Recipe {i}: {name}{scaling_note}
 Ingredients:
 {chr(10).join(ing_list)}
 """)
-    
+
+        # Handle Sub-recipes
+        sub_recipes = recipe.get("sub_recipes", [])
+        if sub_recipes:
+            for sub_i, sub in enumerate(sub_recipes, 1):
+                sub_name = sub.get("name", "Unknown Sub-recipe")
+                sub_ings = sub.get("ingredients", [])
+                
+                # Format sub-recipe ingredients
+                sub_ing_list = []
+                for ing in sub_ings:
+                    # Apply same scaling ratio as parent
+                    scaled_sub_text = scale_quantity(str(ing), ratio)
+                    sub_ing_list.append(f"  - {scaled_sub_text}")
+                
+                formatted.append(f"""
+Recipe {i}.{sub_i}: {sub_name} (Component of {name})
+Ingredients:
+{chr(10).join(sub_ing_list)}
+""")
+
     return "\n".join(formatted)
 
 def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = None) -> str:

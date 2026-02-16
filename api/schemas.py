@@ -45,6 +45,11 @@ class Ingredient(BaseModel):
     class Config:
         from_attributes = True
 
+class SubRecipe(BaseModel):
+    name: str
+    ingredients: List[str] = []
+    instructions: List[str] = []
+
 class RecipeBase(BaseModel):
     name: str
     chapter: Optional[str] = None
@@ -68,6 +73,7 @@ class Recipe(RecipeBase):
     catalog_id: Optional[int] = None
     catalog: Optional[Catalog] = None
     ingredients: List[Ingredient] = []
+    sub_recipes: List[SubRecipe] = []
     
     class Config:
         from_attributes = True
@@ -81,6 +87,7 @@ class RecipeUpdate(BaseModel):
     cook_time: Optional[str] = None
     serves: Optional[str] = None
     calories: Optional[str] = None
+    sub_recipes: Optional[List[SubRecipe]] = None
 
 class PlanGenerateRequest(BaseModel):
     recipe_count: int = 5

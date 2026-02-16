@@ -169,7 +169,8 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
                                             <button type="submit" name="mode" value="quick" class="dropdown-item">
-                                                ⚡ <strong>Quick Swap</strong> <span class="text-muted small ms-2">(Default)</span>
+                                                ⚡ <strong>Quick Swap</strong> <span
+                                                    class="text-muted small ms-2">(Default)</span>
                                             </button>
                                         </li>
                                         <li>
@@ -177,7 +178,7 @@
                                                 🧠 Find Similar
                                             </button>
                                         </li>
-                                         <li>
+                                        <li>
                                             <button type="submit" name="mode" value="flexible" class="dropdown-item">
                                                 🧩 Be Flexible <span class="text-muted small ms-2">(Ignore Type)</span>
                                             </button>
@@ -240,6 +241,19 @@
                                     </div>
                                 </div>
                             </label>
+                            <?php if (!empty($recipe['sub_recipes'])): ?>
+                                <?php foreach ($recipe['sub_recipes'] as $sub): ?>
+                                    <div
+                                        class="list-group-item list-group-item-light p-2 ps-5 border-top-0 text-muted d-flex align-items-center">
+                                        <span class="me-2" style="opacity: 0.5;">↳</span>
+                                        <div>
+                                            <strong><?= h($sub['name']) ?></strong>
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-2"
+                                                style="font-size: 0.7em;">Component</span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                 </form>
@@ -285,6 +299,19 @@
                                 </div>
                             </div>
                         </div>
+                        <?php if (!empty($recipe['sub_recipes'])): ?>
+                            <?php foreach ($recipe['sub_recipes'] as $sub): ?>
+                                <div
+                                    class="list-group-item list-group-item-light p-2 ps-5 border-top-0 text-muted d-flex align-items-center">
+                                    <span class="me-2" style="opacity: 0.5;">↳</span>
+                                    <div>
+                                        <strong><?= h($sub['name']) ?></strong>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-2"
+                                            style="font-size: 0.7em;">Component</span>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
