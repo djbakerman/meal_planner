@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List, Optional, Any
 from datetime import datetime
 
@@ -49,6 +49,13 @@ class SubRecipe(BaseModel):
     name: str
     ingredients: List[str] = []
     instructions: List[str] = []
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_string(cls, v):
+        if isinstance(v, str):
+            return {"name": v}
+        return v
 
 class RecipeBase(BaseModel):
     name: str
