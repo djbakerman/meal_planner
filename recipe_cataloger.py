@@ -354,6 +354,35 @@ Important:
     return {"error": "Failed to analyze image"}
 
 
+def sanitize_recipe(recipe: dict) -> dict:
+    """Ensure recipe fields have correct types (e.g., lists vs strings)."""
+    # Sanitize sub_recipes
+    if "sub_recipes" in recipe:
+        subs = recipe["sub_recipes"]
+        if isinstance(subs, list):
+            sanitized_subs = []
+            for sub in subs:
+                if isinstance(sub, str):
+                    sanitized_subs.append({"name": sub, "ingredients": [], "instructions": []})
+                elif isinstance(sub, dict):
+                    # Ensure sub-recipe fields are lists
+                    if isinstance(sub.get("ingredients"), str):
+                        sub["ingredients"] = [sub["ingredients"]]
+                    if isinstance(sub.get("instructions"), str):
+                        sub["instructions"] = [sub["instructions"]]
+                    sanitized_subs.append(sub)
+            recipe["sub_recipes"] = sanitized_subs
+        elif isinstance(subs, str):
+            recipe["sub_recipes"] = [{"name": subs, "ingredients": [], "instructions": []}]
+            
+    # Sanitize top-level lists
+    for field in ["ingredients", "instructions", "tips", "dietary_info"]:
+        if field in recipe and isinstance(recipe[field], str):
+            recipe[field] = [recipe[field]]
+            
+    return recipe
+
+
 def extract_recipes(image_path: str, model: str, current_chapter: dict = None, 
                    pending_recipe: dict = None, max_retries: int = 2, api_key: str = None,
                    backup_model: str = None, classification: dict = None) -> dict:
@@ -483,42 +512,50 @@ Set is_continuation=FALSE if the recipe starts fresh with a title and step 1
 
 Respond with ONLY valid JSON.""",
 
-        # Retry prompt - more explicit about two-column layout
+    # Updated prompt 2: Two-column layout
         f"""{chapter_context}This appears to be a TWO-COLUMN cookbook layout. 
+        
+LEFT COLUMN: Contains one (or more) recipes
+RIGHT COLUMN: Contains another (or more) recipes
 
-LEFT COLUMN: Contains one recipe
-RIGHT COLUMN: Contains another recipe
-
-Extract BOTH recipes completely. Include:
-- Recipe names (titles at top of each column)
-- All ingredients listed under each recipe
-- Any sub-recipes (dressings, sauces) shown in boxes
-- Instructions numbered at bottom
-- Tips/variations in colored text
-- Macros: calories, protein, carbs, fat as SEPARATE fields (just the numbers)
-- dietary_info: ONLY restriction tags like VEGAN, GLUTEN-FREE (NOT macros)
+Extract ALL recipes. For EACH recipe found:
+- Name/Title
+- Ingredients (list)
+- Instructions (list)
+- Sub-recipes (e.g., dressings/sauces in boxes) - format as objects
+- Macros (calories, protein, carbs, fat)
 
 JSON format:
-{{"recipes": [{{recipe1}}, {{recipe2}}], "has_continuation": false}}
-
-Each recipe needs: name, meal_type (breakfast/lunch/dinner/any), dish_role (main/side/sub_recipe), serves, calories, protein, carbs, fat, dietary_info, ingredients, sub_recipes, instructions, tips.
+{{
+    "recipes": [
+        {{
+            "name": "recipe title",
+            "meal_type": "breakfast/lunch/dinner/any",
+            "dish_role": "main/side/sub_recipe",
+            "serves": "servings",
+            "calories": "number", "protein": "grams", "carbs": "grams", "fat": "grams",
+            "dietary_info": ["VEGAN", "GLUTEN-FREE"],
+            "ingredients": ["ing 1", "ing 2"],
+            "sub_recipes": [
+                {{
+                    "name": "Sub-recipe Name",
+                    "ingredients": ["sub-ing 1"],
+                    "instructions": ["sub-step 1"]
+                }}
+            ],
+            "instructions": ["step 1", "step 2"],
+            "tips": ["tips"]
+        }}
+    ], 
+    "has_continuation": false
+}}
 
 Respond with ONLY JSON.""",
 
-        # Third retry - for pages with large photos
-        f"""{chapter_context}This page has a LARGE FOOD PHOTOGRAPH taking up significant space. IGNORE THE PHOTO COMPLETELY.
+        # Updated prompt 3: Photo heavy
+        f"""{chapter_context}This page has a LARGE FOOD PHOTOGRAPH. IGNORE THE PHOTO. Focus ONLY on text.
 
-Focus ONLY on the TEXT areas of the page. Look for:
-1. RECIPE TITLE - usually in large/bold text
-2. INGREDIENTS LIST - look for measurements like cups, tablespoons, teaspoons, ounces, pounds
-3. NUMBERED INSTRUCTIONS - steps 1, 2, 3, etc.
-4. SERVING INFO - "Serves 4" or similar
-5. NUTRITION INFO - calories, protein, carbs, fat (often at bottom)
-6. PREP/COOK TIME - "Prep time: X minutes"
-
-The recipe text might be in a SINGLE COLUMN next to the photo, or wrapped around it.
-
-Extract the recipe in this JSON format:
+Extract the recipe(s) in this format:
 {{
     "recipes": [
         {{
@@ -526,22 +563,24 @@ Extract the recipe in this JSON format:
             "meal_type": "breakfast/lunch/dinner/any",
             "dish_role": "main/side/sub_recipe", 
             "serves": "serving size",
-            "prep_time": "prep time if shown",
-            "cook_time": "cooking time if shown",
-            "calories": "calorie number only",
-            "protein": "protein grams",
-            "carbs": "carb grams", 
-            "fat": "fat grams",
-            "dietary_info": ["DAIRY-FREE", "VEGAN", etc - only dietary tags],
-            "ingredients": ["ingredient 1 with amount", "ingredient 2 with amount", ...],
-            "instructions": ["step 1", "step 2", ...],
-            "tips": ["any tips or variations"]
+            "calories": "number", "protein": "grams", "carbs": "grams", "fat": "grams",
+            "dietary_info": ["DAIRY-FREE", "VEGAN"],
+            "ingredients": ["ingredient 1", "ingredient 2"],
+            "sub_recipes": [
+                {{
+                    "name": "Sub-recipe Name",
+                    "ingredients": ["sub-ing 1"],
+                    "instructions": ["sub-step 1"]
+                }}
+            ],
+            "instructions": ["step 1", "step 2"],
+            "tips": ["tips"]
         }}
     ],
     "has_continuation": false
 }}
 
-READ ALL THE TEXT CAREFULLY - don't let the photo distract you. Respond with ONLY valid JSON.""",
+Respond with ONLY valid JSON.""",
     ]
     
     best_result = {"recipes": [], "partial_recipe": None}
@@ -563,8 +602,11 @@ READ ALL THE TEXT CAREFULLY - don't let the photo distract you. Respond with ONL
                     complete_recipes = []
                     partial = None
                     
-                    for recipe in recipes:
-                        # Add chapter info
+                        for recipe in recipes:
+                            # Sanitize data types
+                            recipe = sanitize_recipe(recipe)
+
+                            # Add chapter info
                         if current_chapter:
                             recipe["chapter"] = current_chapter.get("chapter_title")
                             recipe["chapter_number"] = current_chapter.get("chapter_number")
