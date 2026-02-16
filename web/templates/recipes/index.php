@@ -91,9 +91,17 @@ if (!empty($catalogs)) {
                                 <a href="<?= url('/recipes/' . $recipe['id']) ?>" class="text-decoration-none text-dark">
                                     <?= h($recipe['name']) ?>
                                 </a>
+                                </a>
                             </div>
                             <?php if (!empty($recipe['description'])): ?>
                                 <small class="text-muted"><?= substr(h($recipe['description']), 0, 80) ?>...</small>
+                            <?php endif; ?>
+                            <?php if (!empty($recipe['sub_recipes'])): ?>
+                                <div class="mt-1">
+                                    <span class="badge bg-light text-dark border" title="Includes sub-recipes">
+                                        +<?= count($recipe['sub_recipes']) ?> components
+                                    </span>
+                                </div>
                             <?php endif; ?>
                         </td>
                         <td>

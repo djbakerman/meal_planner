@@ -66,6 +66,23 @@
                     <?php else: ?>
                         <p class="text-muted fst-italic">No instructions listed.</p>
                     <?php endif; ?>
+
+                    <?php if (!empty($recipe['sub_recipes'])): ?>
+                        <?php foreach ($recipe['sub_recipes'] as $sub): ?>
+                            <div class="mt-4">
+                                <h5 class="border-bottom pb-2">For the <?= h($sub['name']) ?></h5>
+                                <?php if (!empty($sub['instructions'])): ?>
+                                    <ol class="list-group list-group-numbered list-group-flush">
+                                        <?php foreach ($sub['instructions'] as $step): ?>
+                                            <li class="list-group-item"><?= h($step) ?></li>
+                                        <?php endforeach; ?>
+                                    </ol>
+                                <?php else: ?>
+                                    <p class="text-muted fst-italic">No instructions listed.</p>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
 
                 <?php if (!empty($recipe['tips'])): ?>
@@ -97,6 +114,24 @@
                     <?php endforeach; ?>
                 <?php else: ?>
                     <li class="list-group-item text-muted">No ingredients listed.</li>
+                <?php endif; ?>
+
+                <?php if (!empty($recipe['sub_recipes'])): ?>
+                    <?php foreach ($recipe['sub_recipes'] as $sub): ?>
+                        <li class="list-group-item bg-light fw-bold text-muted small text-uppercase mt-2">
+                            For the <?= h($sub['name']) ?>
+                        </li>
+                        <?php if (!empty($sub['ingredients'])): ?>
+                            <?php foreach ($sub['ingredients'] as $ing): ?>
+                                <li class="list-group-item ingredient-item"
+                                    data-original="<?= h($ing) // Note: sub-recipe ingredients are strings, not objects ?>">
+                                    <?= h($ing) ?>
+                                </li>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <li class="list-group-item text-muted fst-italic small">No ingredients listed.</li>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 <?php endif; ?>
             </ul>
         </div>

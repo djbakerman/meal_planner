@@ -1233,7 +1233,10 @@ def print_recipe_list_simple(catalog: dict):
     print("=" * 60)
     
     for num, name in sorted_recipes:
-        print(f"  {num:3}. {name}")
+        recipe = next((r for r in recipes if r.get("name", "Unknown") == name), None)
+        sub_count = len(recipe.get("sub_recipes", [])) if recipe else 0
+        sub_str = f" (+{sub_count} sub-recipes)" if sub_count > 0 else ""
+        print(f"  {num:3}. {name}{sub_str}")
     
     print("=" * 60)
     print(f"Use --delete <num> [num2 ...] to remove recipes")
@@ -1290,6 +1293,10 @@ def print_catalog_summary(catalog: dict):
             dietary = recipe.get("dietary_info", [])
             dietary_str = f" ({', '.join(dietary)})" if dietary and dietary != [''] else ""
             print(f"   {num:3}. {name}{dietary_str}")
+            
+            sub_recipes = recipe.get("sub_recipes", [])
+            if sub_recipes:
+                print(f"        + {len(sub_recipes)} sub-recipes: {', '.join([s.get('name', 'Unknown') for s in sub_recipes])}")
     
     # Unmatched (recipes listed but not extracted)
     unmatched = index.get("unmatched", [])
@@ -1620,7 +1627,13 @@ def process_single_file(file_path: str, model: str, chapter_context: dict = None
             
             sub_recipes = recipe.get('sub_recipes', [])
             if sub_recipes:
-                print(f"  Sub-recipes: {[sr.get('name', 'Unknown') for sr in sub_recipes]}")
+                print(f"  Sub-recipes: {len(sub_recipes)} found")
+                for sr in sub_recipes:
+                    print(f"    - {sr.get('name', 'Unknown')}")
+                    if sr.get('ingredients'):
+                        print(f"      Ingredients: {len(sr.get('ingredients'))}")
+                    if sr.get('instructions'):
+                        print(f"      Instructions: {len(sr.get('instructions'))}")
             
             instructions = recipe.get('instructions', [])
             print(f"  Instructions: {len(instructions)} steps")
@@ -1640,6 +1653,66 @@ def process_single_file(file_path: str, model: str, chapter_context: dict = None
             if has_name and has_ingredients and has_instructions:
                 # This looks complete - treat it as a full recipe
                 print(f"\n  📋 Recipe (marked as partial but appears complete): {partial.get('name', 'Unknown')}")
+                
+                # Print details for verification
+                recipe = partial
+                print(f"  Serves: {recipe.get('serves', 'N/A')}")
+                
+                # Meal type and dish role
+                if recipe.get('meal_type'):
+                    print(f"  Meal type: {recipe['meal_type']}")
+                if recipe.get('dish_role'):
+                    print(f"  Dish role: {recipe['dish_role']}")
+                
+                # Time info
+                if recipe.get('prep_time') or recipe.get('cook_time'):
+                    times = []
+                    if recipe.get('prep_time'):
+                        times.append(f"Prep: {recipe['prep_time']}")
+                    if recipe.get('cook_time'):
+                        times.append(f"Cook: {recipe['cook_time']}")
+                    print(f"  Time: {', '.join(times)}")
+                
+                # Macros
+                macros = []
+                if recipe.get('calories'):
+                    macros.append(f"{recipe['calories']} cal")
+                if recipe.get('protein'):
+                    macros.append(f"{recipe['protein']} protein")
+                if recipe.get('carbs'):
+                    macros.append(f"{recipe['carbs']} carbs")
+                if recipe.get('fat'):
+                    macros.append(f"{recipe['fat']} fat")
+                if macros:
+                    print(f"  Macros: {' | '.join(macros)}")
+                
+                dietary = recipe.get('dietary_info', [])
+                if dietary:
+                    print(f"  Dietary: {', '.join(dietary)}")
+                
+                ingredients = recipe.get('ingredients', [])
+                print(f"  Ingredients: {len(ingredients)} items")
+                for ing in ingredients[:5]:
+                    print(f"    - {ing}")
+                if len(ingredients) > 5:
+                    print(f"    ... and {len(ingredients) - 5} more")
+                
+                sub_recipes = recipe.get('sub_recipes', [])
+                if sub_recipes:
+                    print(f"  Sub-recipes: {len(sub_recipes)} found")
+                    for sr in sub_recipes:
+                        print(f"    - {sr.get('name', 'Unknown')}")
+                        if sr.get('ingredients'):
+                            print(f"      Ingredients: {len(sr.get('ingredients'))}")
+                        if sr.get('instructions'):
+                            print(f"      Instructions: {len(sr.get('instructions'))}")
+                
+                instructions = recipe.get('instructions', [])
+                print(f"  Instructions: {len(instructions)} steps")
+                
+                tips = recipe.get('tips', [])
+                if tips:
+                    print(f"  Tips: {len(tips)} tip(s)")
                 partial["note"] = "Was marked as continuation/partial but has all required fields"
                 partial["is_complete"] = True
                 
