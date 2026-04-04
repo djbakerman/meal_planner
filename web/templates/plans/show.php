@@ -321,15 +321,86 @@
     <!-- AI Output Column (Placeholders for Module 5) -->
     <div class="col-lg-4">
         <?php if (!empty($plan['grocery_list'])): ?>
+            <?php
+            $rawContent = $plan['grocery_list']['content'] ?? '';
+            $lines = explode("\n", $rawContent);
+            $groceryHtml = "";
+            $rawItemsForShortcuts = "";
+
+            foreach ($lines as $line) {
+                $tLine = trim($line);
+                if ($tLine === '') {
+                    continue;
+                } elseif (preg_match('/^(?:-\s*\[\s*\]|\[\s*\]|-|□|\*)\s*(.+)$/u', $tLine, $matches)) {
+                    $cleanItem = h(trim($matches[1]));
+                    $rawItemsForShortcuts .= trim($matches[1]) . "\n";
+                    $groceryHtml .= '<label class="grocery-item d-flex align-items-start mb-2 rounded" style="cursor:pointer; transition: all 0.2s;" onclick="toggleGroceryItem(event, this)"><input type="checkbox" class="form-check-input me-2 mt-1 flex-shrink-0"> <span class="grocery-text">' . $cleanItem . "</span></label>";
+                } else {
+                    $cleanHeader = trim(str_replace(['#', '*'], '', $tLine));
+                    $groceryHtml .= '<h6 class="mt-3 mb-2 fw-bold text-success border-bottom pb-1">' . h($cleanHeader) . '</h6>';
+                }
+            }
+            $shareTextEncoded = json_encode($rawContent);
+            $shortcutTextEncoded = urlencode(trim($rawItemsForShortcuts));
+            ?>
             <div class="card shadow-sm mb-4 border-success">
-                <div class="card-header bg-success text-white">
-                    🛒 Grocery List (Ready)
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <span>🛒 Grocery List</span>
+                    <div class="btn-group btn-group-sm">
+                        <button onclick="shareGrocery()" class="btn btn-light" title="Share List">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-share" viewBox="0 0 16 16">
+                                <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.5 2.5 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5m-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3"/>
+                            </svg>
+                        </button>
+                        <button onclick="runAppleShortcut()" class="btn btn-light" title="Send to iOS Reminders">
+                            Reminders
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <pre class="small mb-0"
-                        style="white-space: pre-wrap; font-family: inherit;"><?= h($plan['grocery_list']['content'] ?? 'Error loading content') ?></pre>
+                    <div class="small mb-0" style="font-family: inherit;">
+                        <?= $groceryHtml ?>
+                    </div>
                 </div>
             </div>
+            
+            <script>
+            function toggleGroceryItem(event, element) {
+                if (event.target.tagName !== 'INPUT') {
+                    const checkbox = element.querySelector('input[type="checkbox"]');
+                    if (checkbox) checkbox.checked = !checkbox.checked;
+                }
+                const checkbox = element.querySelector('input[type="checkbox"]');
+                const textSpan = element.querySelector('.grocery-text');
+                if (checkbox && checkbox.checked) {
+                    element.style.opacity = '0.5';
+                    element.style.backgroundColor = '#f8f9fa';
+                    if (textSpan) textSpan.style.textDecoration = 'line-through';
+                } else {
+                    element.style.opacity = '1';
+                    element.style.backgroundColor = 'transparent';
+                    if (textSpan) textSpan.style.textDecoration = 'none';
+                }
+            }
+
+            function shareGrocery() {
+                const shareData = {
+                    title: 'Grocery List',
+                    text: <?= $shareTextEncoded ?>
+                };
+                if (navigator.share) {
+                    navigator.share(shareData).catch(err => console.log(err));
+                } else {
+                    navigator.clipboard.writeText(shareData.text).then(() => alert("List copied to clipboard!"));
+                }
+            }
+
+            function runAppleShortcut() {
+                if(confirm("This will trigger a shortcut named 'Add Groceries' on your iPhone if installed. Continue?")) {
+                    window.location.href = `shortcuts://run-shortcut?name=Add%20Groceries&input=text&text=<?= $shortcutTextEncoded ?>`;
+                }
+            }
+            </script>
         <?php endif; ?>
 
         <?php if (!empty($plan['prep_plan'])): ?>
