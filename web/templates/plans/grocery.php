@@ -11,6 +11,22 @@
     <div class="btn-group">
         <a href="<?= url('/plans/' . $planId) ?>" class="btn btn-outline-secondary">Back to Plan</a>
         <button onclick="window.print()" class="btn btn-outline-primary">Print</button>
+        <button onclick="shareList()" class="btn btn-outline-success">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-share me-1" viewBox="0 0 16 16">
+                <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.5 2.5 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5m-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3"/>
+            </svg>
+            Share
+        </button>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                Apple Reminders
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item" onclick="runAppleShortcut()">Send to iOS Reminders</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#shortcutHelpModal">How to setup shortcut...</button></li>
+            </ul>
+        </div>
     </div>
 </div>
 
@@ -44,6 +60,79 @@
             </div>
         <?php endforeach; ?>
     </div>
+
+    <?php
+    $shareText = "Grocery List\n\n";
+    $shortcutText = "";
+    foreach ($groceryList as $category => $items) {
+        if (!empty($items)) {
+            $shareText .= strtoupper($category) . "\n";
+            foreach ($items as $item) {
+                // For regular sharing, keep category headers
+                $shareText .= "[ ] " . $item . "\n";
+                // For reminders/shortcuts, just dump the raw items so they split properly into checklists
+                $shortcutText .= $item . "\n";
+            }
+            $shareText .= "\n";
+        }
+    }
+    $shareTextEncoded = json_encode(trim($shareText));
+    $shortcutTextEncoded = urlencode(trim($shortcutText));
+    ?>
+
+    <!-- iOS Shortcut Help Modal -->
+    <div class="modal fade" id="shortcutHelpModal" tabindex="-1" aria-labelledby="shortcutHelpModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="shortcutHelpModalLabel">Apple Shortcuts Setup</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>To add each ingredient as a standalone checkable item in the iOS Reminders app, follow these steps on your iPhone:</p>
+            <ol>
+                <li>Open the <strong>Shortcuts</strong> app.</li>
+                <li>Tap <strong>+</strong> to create a new shortcut and name it exactly <code>Add Groceries</code>.</li>
+                <li>Add the action <strong>Split Text</strong> and set it to split <code>Shortcut Input</code> by <code>New Lines</code>.</li>
+                <li>Add the action <strong>Repeat with Each</strong> and set it to repeat with <code>Split Text</code>.</li>
+                <li>Inside the repeat block, add the action <strong>Add New Reminder</strong>. Set it to add <code>Repeat Item</code> to your <code>Groceries</code> list.</li>
+                <li>Tap <strong>Done</strong> to save the shortcut.</li>
+            </ol>
+            <p class="text-muted small mb-0">Once set up, the "Send to Apple Reminders" button will seamlessly push all items into your grocery list.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    const shareData = {
+        title: 'Grocery List',
+        text: <?= $shareTextEncoded ?>
+    };
+
+    async function shareList() {
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch (err) {
+                console.log('Error sharing:', err);
+            }
+        } else {
+            navigator.clipboard.writeText(shareData.text).then(() => {
+                alert("List copied to clipboard! (Web Share not supported)");
+            });
+        }
+    }
+
+    function runAppleShortcut() {
+        // Trigger the custom shortcut URL scheme
+        const url = `shortcuts://run-shortcut?name=Add%20Groceries&input=text&text=<?= $shortcutTextEncoded ?>`;
+        window.location.href = url;
+    }
+    </script>
 
     <!-- Print Styles -->
     <style>
