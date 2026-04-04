@@ -134,8 +134,27 @@
     }
     </script>
 
-    <!-- Print Styles -->
+    <!-- Styles -->
     <style>
+        /* Interactive Checkout Styles */
+        .form-check-input:checked + label {
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+        
+        .list-group-item {
+            transition: background-color 0.2s ease, opacity 0.2s ease;
+        }
+        
+        label {
+            transition: color 0.2s ease;
+        }
+
+        .list-group-item:has(.form-check-input:checked) {
+            background-color: #f8f9fa;
+            opacity: 0.7;
+        }
+
         @media print {
 
             .navbar,
