@@ -65,7 +65,7 @@ def scale_quantity(text: str, ratio: float) -> str:
         # Fallback if anything goes wrong, return original
         return text
 
-def format_recipes_for_ai(recipes: List[dict], target_servings: int = None) -> str:
+def format_recipes_for_ai(recipes: List[dict], target_servings: int = None, include_instructions: bool = False) -> str:
     """Format recipes for the AI prompt, including explicit scaling factors."""
     formatted = []
     
@@ -108,6 +108,13 @@ Ingredients:
 {chr(10).join(ing_list)}
 """)
 
+        if include_instructions and recipe.get("instructions"):
+            inst_list = recipe.get("instructions", [])
+            if inst_list:
+                formatted.append("Instructions:")
+                formatted.append("\n".join(inst_list))
+                formatted.append("\n")
+
         # Handle Sub-recipes
         sub_recipes = recipe.get("sub_recipes", [])
         if sub_recipes:
@@ -127,6 +134,12 @@ Recipe {i}.{sub_i}: {sub_name} (Component of {name})
 Ingredients:
 {chr(10).join(sub_ing_list)}
 """)
+                if include_instructions and sub.get("instructions"):
+                    s_inst = sub.get("instructions", [])
+                    if s_inst:
+                        formatted.append("Instructions:")
+                        formatted.append("\n".join(s_inst))
+                        formatted.append("\n")
 
     return "\n".join(formatted)
 
@@ -148,6 +161,7 @@ def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = N
 IMPORTANT: Combine similar ingredients intelligently. For example:
 - If 3 recipes each need "2 eggs", list "6 eggs" (NOT "2 eggs" three times)
 - If 2 recipes need bread for sandwiches, list "1 loaf bread"
+- Convert measured/liquid produce into whole produce shopping equivalents (e.g. "2 tbsp lemon juice" -> "1 lemon", "1 cup chopped onion" -> "1 large onion").
 - If multiple recipes need chicken breast, sum the quantities found
 - Group ingredients by store section (Produce, Meat, Dairy, Pantry, etc.)
 
@@ -174,7 +188,7 @@ def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None
     Generate a meal prep plan using AI.
     """
     # Recipies pre-scaled
-    recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
+    recipes_text = format_recipes_for_ai(recipes, target_servings=servings, include_instructions=True)
     
     prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want to do ALL the prep work in one session so that during the week I just assemble and cook.
     
