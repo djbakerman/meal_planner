@@ -147,6 +147,13 @@ if (!empty($catalogs)) {
                                         class="btn btn-outline-secondary">Edit</a>
                                 <?php endif; ?>
 
+                                <?php if (isset($_SESSION['user'])): ?>
+                                    <form action="<?= url('/plans/quick-add') ?>" method="POST" class="d-inline">
+                                        <input type="hidden" name="recipe_id" value="<?= $recipe['id'] ?>">
+                                        <button type="submit" class="btn btn-outline-success" title="Quick Add to Today's Plan">Quick Add</button>
+                                    </form>
+                                <?php endif; ?>
+
                                 <?php if (!empty($filters['add_to_plan'])): ?>
                                     <form action="<?= url('/plans/' . $filters['add_to_plan'] . '/add') ?>" method="POST"
                                         class="d-inline">

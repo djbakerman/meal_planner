@@ -622,6 +622,59 @@ def remove_recipes(plan_id: int, request: schemas.RecipeListRequest, db: Session
     db.refresh(plan)
     return plan
 
+@router.post("/quick-add", response_model=schemas.MealPlan)
+def quick_add_recipe(request: schemas.QuickAddRequest, db: Session = Depends(get_db)):
+    """Quickly add a recipe to a date-based meal plan."""
+    plan_name = f"Quick Plan {request.date}"
+    
+    # 1. Find the plan
+    query = db.query(orm.MealPlan).filter(orm.MealPlan.name == plan_name)
+    if request.user_id:
+        query = query.filter(orm.MealPlan.user_id == request.user_id)
+        
+    plan = query.first()
+    
+    # 2. If not found, create it
+    if not plan:
+        plan = orm.MealPlan(
+            name=plan_name,
+            recipe_count=0,
+            meal_types=[],
+            target_servings=4, # default
+            user_id=request.user_id,
+            created_at=datetime.now()
+        )
+        db.add(plan)
+        db.flush()
+        
+    # 3. Add the recipe if it's not already in there
+    recipe_to_add = db.query(orm.Recipe).filter(orm.Recipe.id == request.recipe_id).first()
+    if not recipe_to_add:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+        
+    current_ids = {link.recipe_id for link in plan.plan_recipes}
+    if request.recipe_id not in current_ids:
+        max_pos = -1
+        for link in plan.plan_recipes:
+            if link.position > max_pos:
+                max_pos = link.position
+                
+        new_link = orm.MealPlanRecipe(
+            plan_id=plan.id,
+            recipe_id=recipe_to_add.id,
+            position=max_pos + 1
+        )
+        db.add(new_link)
+        
+        plan.recipe_count += 1
+        plan.grocery_list = None
+        plan.prep_plan = None
+        
+        db.commit()
+        db.refresh(plan)
+        
+    return plan
+
 @router.post("/{plan_id}/add", response_model=schemas.MealPlan)
 def add_recipe(plan_id: int, request: schemas.RecipeAddRequest, db: Session = Depends(get_db)):
     """

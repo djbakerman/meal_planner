@@ -38,6 +38,7 @@ return function (App $app) {
         $group->get('/plans', [PlanController::class, 'index']);
         $group->get('/plans/new', [PlanController::class, 'create']);
         $group->post('/plans', [PlanController::class, 'store']);
+        $group->post('/plans/quick-add', [PlanController::class, 'quickAdd']);
         $group->get('/plans/{id}', [PlanController::class, 'show']);
         $group->post('/plans/{id}/grocery', [PlanController::class, 'generateGrocery']);
         $group->post('/plans/{id}/prep', [PlanController::class, 'generatePrep']);

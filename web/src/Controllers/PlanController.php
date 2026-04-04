@@ -481,4 +481,36 @@ class PlanController
 
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
+    
+    public function quickAdd(Request $request, Response $response, $args): Response
+    {
+        $data = $request->getParsedBody();
+        $user = $request->getAttribute('user');
+        
+        if (!$user) {
+            $this->session->flash('error', 'Must be logged in to quick add.');
+            $referer = $request->getHeaderLine('Referer');
+            return $response->withHeader('Location', $referer ?: url('/recipes'))->withStatus(302);
+        }
+        
+        $payload = [
+            'recipe_id' => (int) ($data['recipe_id'] ?? 0),
+            'user_id' => $user['id'],
+            'date' => date('Y-m-d')
+        ];
+        
+        $result = $this->api->post('/api/plans/quick-add', $payload);
+        
+        if (isset($result['detail'])) {
+            $msg = is_string($result['detail']) ? $result['detail'] : json_encode($result['detail']);
+            $this->session->flash('error', 'Error: ' . $msg);
+        } elseif (isset($result['error'])) {
+            $this->session->flash('error', 'System Error: ' . $result['error']);
+        } else {
+            $this->session->flash('success', 'Recipe added to Quick Plan for today.');
+        }
+        
+        $referer = $request->getHeaderLine('Referer');
+        return $response->withHeader('Location', $referer ?: url('/recipes'))->withStatus(302);
+    }
 }

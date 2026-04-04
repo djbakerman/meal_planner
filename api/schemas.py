@@ -138,6 +138,11 @@ class RecipeAddRequest(BaseModel):
     meal_type: Optional[str] = None # Optional filter for random add
     user_id: Optional[int] = None
 
+class QuickAddRequest(BaseModel):
+    recipe_id: int
+    user_id: Optional[int] = None
+    date: str # e.g. YYYY-MM-DD
+
 class PlanUpdateRequest(BaseModel):
     name: Optional[str] = None
     user_id: Optional[int] = None
