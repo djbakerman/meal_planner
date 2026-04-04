@@ -17,7 +17,15 @@ def get_with_sub_recipes(db: Session, initial_recipes: List[orm.Recipe]) -> List
     
     for r in initial_recipes:
         if r.sub_recipes:
-            for sub_item in r.sub_recipes:
+            import json
+            subs = r.sub_recipes
+            if isinstance(subs, str):
+                try:
+                    subs = json.loads(subs)
+                except json.JSONDecodeError:
+                    subs = []
+
+            for sub_item in subs:
                 sub_name = sub_item.get('name') if isinstance(sub_item, dict) else sub_item
                 if not isinstance(sub_name, str):
                     continue
@@ -409,7 +417,15 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
         
         # Add inline sub-recipe ingredients if they exist
         if r.sub_recipes:
-            for sub in r.sub_recipes:
+            import json
+            subs = r.sub_recipes
+            if isinstance(subs, str):
+                try:
+                    subs = json.loads(subs)
+                except json.JSONDecodeError:
+                    subs = []
+            
+            for sub in subs:
                 if isinstance(sub, dict) and "ingredients" in sub:
                     for ing in sub["ingredients"]:
                         recipe_ings.append({"ingredient_text": ing})
@@ -458,7 +474,15 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
         
         # Add inline sub-recipe ingredients and instructions if they exist
         if r.sub_recipes:
-            for sub in r.sub_recipes:
+            import json
+            subs = r.sub_recipes
+            if isinstance(subs, str):
+                try:
+                    subs = json.loads(subs)
+                except json.JSONDecodeError:
+                    subs = []
+
+            for sub in subs:
                 if isinstance(sub, dict):
                     if "ingredients" in sub:
                         for ing in sub["ingredients"]:
