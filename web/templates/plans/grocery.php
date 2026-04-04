@@ -48,9 +48,9 @@
                     </div>
                     <ul class="list-group list-group-flush">
                         <?php foreach ($items as $item): ?>
-                            <li class="list-group-item">
+                            <li class="list-group-item interactive-grocery-item" onclick="toggleItem(event, this)">
                                 <input type="checkbox" class="form-check-input me-2" id="item-<?= md5($item) ?>">
-                                <label for="item-<?= md5($item) ?>" style="cursor: pointer;">
+                                <label for="item-<?= md5($item) ?>" style="cursor: pointer;" class="w-100 mb-0">
                                     <?= e($item) ?>
                                 </label>
                             </li>
@@ -132,12 +132,28 @@
         const url = `shortcuts://run-shortcut?name=Add%20Groceries&input=text&text=<?= $shortcutTextEncoded ?>`;
         window.location.href = url;
     }
+
+    function toggleItem(event, element) {
+        // Prevent double toggling if they clicked the checkbox directly
+        if (event.target.tagName !== 'INPUT') {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+        }
+        
+        // Update visual state
+        const checkbox = element.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+            element.classList.add('checked-active');
+        } else {
+            element.classList.remove('checked-active');
+        }
+    }
     </script>
 
     <!-- Styles -->
     <style>
         /* Interactive Checkout Styles */
-        .form-check-input:checked + label {
+        .checked-active label {
             text-decoration: line-through;
             color: #6c757d;
         }
@@ -150,7 +166,7 @@
             transition: color 0.2s ease;
         }
 
-        .list-group-item:has(.form-check-input:checked) {
+        .checked-active {
             background-color: #f8f9fa;
             opacity: 0.7;
         }
