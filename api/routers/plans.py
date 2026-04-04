@@ -403,11 +403,19 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
     # It handles both, but let's pass objects to be safe with our new logic.
     recipe_dicts = []
     for r in recipes:
-        # Crude to_dict
+        recipe_ings = [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
+        
+        # Add inline sub-recipe ingredients if they exist
+        if r.sub_recipes:
+            for sub in r.sub_recipes:
+                if isinstance(sub, dict) and "ingredients" in sub:
+                    for ing in sub["ingredients"]:
+                        recipe_ings.append({"ingredient_text": ing})
+                        
         r_dict = {
             "name": r.name,
             "serves": r.serves,
-            "ingredients": [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
+            "ingredients": recipe_ings
         }
         recipe_dicts.append(r_dict)
         
@@ -437,10 +445,26 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
     recipes = [link.recipe for link in plan.plan_recipes]
     recipe_dicts = []
     for r in recipes:
+        recipe_ings = [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
+        base_instructions = list(r.instructions) if r.instructions else []
+        
+        # Add inline sub-recipe ingredients and instructions if they exist
+        if r.sub_recipes:
+            for sub in r.sub_recipes:
+                if isinstance(sub, dict):
+                    if "ingredients" in sub:
+                        for ing in sub["ingredients"]:
+                            recipe_ings.append({"ingredient_text": ing})
+                    if "instructions" in sub and sub["instructions"]:
+                        sub_name = sub.get("name", "Sub-recipe")
+                        base_instructions.append(f"--- {sub_name} ---")
+                        base_instructions.extend(sub["instructions"])
+                        
         r_dict = {
             "name": r.name,
             "serves": r.serves,
-            "ingredients": [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
+            "ingredients": recipe_ings,
+            "instructions": base_instructions
         }
         recipe_dicts.append(r_dict)
         
