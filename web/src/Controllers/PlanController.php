@@ -321,7 +321,7 @@ class PlanController
         $id = (int) $args['id'];
         $userId = $this->getUserId($request);
 
-        $this->api->post("/api/plans/{$id}/grocery", ['user_id' => $userId]);
+        $this->api->post("/api/plans/{$id}/grocery", ['user_id' => $userId, 'force' => true]);
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
 
@@ -330,7 +330,7 @@ class PlanController
         $id = (int) $args['id'];
         $userId = $this->getUserId($request);
 
-        $this->api->post("/api/plans/{$id}/prep", ['user_id' => $userId]);
+        $this->api->post("/api/plans/{$id}/prep", ['user_id' => $userId, 'force' => true]);
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
 

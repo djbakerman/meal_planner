@@ -390,8 +390,10 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
         if plan.user_id != request.get("user_id"):
              raise HTTPException(status_code=403, detail="Not authorized to modify this plan")
 
+    force = request.get("force", False) if request else False
+
     # Return existing if present (unless forced - add param later if needed)
-    if plan.grocery_list and plan.grocery_list.get("content"):
+    if not force and plan.grocery_list and plan.grocery_list.get("content"):
         return plan
         
     # Get full recipe objects
@@ -441,6 +443,12 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
     if request and request.get("user_id"):
         if plan.user_id != request.get("user_id"):
              raise HTTPException(status_code=403, detail="Not authorized to modify this plan")
+
+    force = request.get("force", False) if request else False
+
+    # Return existing if present
+    if not force and plan.prep_plan and plan.prep_plan.get("content"):
+        return plan
         
     recipes = [link.recipe for link in plan.plan_recipes]
     recipe_dicts = []
