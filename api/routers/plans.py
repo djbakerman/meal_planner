@@ -10,6 +10,34 @@ from api.models import orm
 from api import schemas
 from api.utils.filters import normalize_exclusions, apply_exclusions
 
+def get_with_sub_recipes(db: Session, initial_recipes: List[orm.Recipe]) -> List[orm.Recipe]:
+    """Resolves and appends any required sub-recipes to the given list of recipes."""
+    final_recipes = list(initial_recipes)
+    processed_ids = {r.id for r in final_recipes}
+    
+    for r in initial_recipes:
+        if r.sub_recipes:
+            for sub_item in r.sub_recipes:
+                sub_name = sub_item.get('name') if isinstance(sub_item, dict) else sub_item
+                if not isinstance(sub_name, str):
+                    continue
+                
+                sub_query = db.query(orm.Recipe).filter(
+                    orm.Recipe.name.ilike(sub_name),
+                    orm.Recipe.dish_role == 'sub_recipe'
+                )
+                
+                if r.catalog_id:
+                     found = sub_query.filter(orm.Recipe.catalog_id == r.catalog_id).first()
+                else:
+                    found = sub_query.first()
+                
+                if found and found.id not in processed_ids:
+                    final_recipes.append(found)
+                    processed_ids.add(found.id)
+                    
+    return final_recipes
+
 router = APIRouter(
     prefix="/api/plans",
     tags=["plans"]
@@ -110,41 +138,7 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     # If using 'days', strictly stick to stratified count (days * types) even if it means missing some if not enough recipes.
     
     # --- SUB-RECIPE DEPENDENCY RESOLUTION ---
-    # Check selected recipes for required sub-recipes
-    # We iterate a copy or index to avoid infinite loops if sub-recipes have sub-recipes (though typically 1 level)
-    
-    final_recipes = list(selected_recipes)
-    processed_ids = {r.id for r in final_recipes}
-    
-    for r in selected_recipes:
-        # Check sub_recipes JSON field: ["Name of Sub 1", "Name of Sub 2"]
-        if r.sub_recipes:
-            for sub_item in r.sub_recipes:
-                # Handle potential object structure in JSON
-                sub_name = sub_item.get('name') if isinstance(sub_item, dict) else sub_item
-                
-                if not isinstance(sub_name, str):
-                    continue
-                # Find this sub-recipe
-                # Ideally look in same catalog, or globally?
-                # Let's try globally for now, or prefer same catalog
-                sub_query = db.query(orm.Recipe).filter(
-                    orm.Recipe.name.ilike(sub_name), # Case insensitive match
-                    orm.Recipe.dish_role == 'sub_recipe'
-                )
-                
-                # If original recipe has catalog, strictly match it
-                if r.catalog_id:
-                     found = sub_query.filter(orm.Recipe.catalog_id == r.catalog_id).first()
-                else:
-                    # If main has no catalog (orphan), allow any sub-recipe
-                    found = sub_query.first()
-                
-                if found and found.id not in processed_ids:
-                    final_recipes.append(found)
-                    processed_ids.add(found.id)
-                    
-    selected_recipes = final_recipes
+    selected_recipes = get_with_sub_recipes(db, selected_recipes)
     
     # Generate creative name using AI
     from api.services import ai_service
@@ -647,26 +641,34 @@ def quick_add_recipe(request: schemas.QuickAddRequest, db: Session = Depends(get
         db.add(plan)
         db.flush()
         
-    # 3. Add the recipe if it's not already in there
+    # 3. Add the recipe (and its sub-recipes) if not already in there
     recipe_to_add = db.query(orm.Recipe).filter(orm.Recipe.id == request.recipe_id).first()
     if not recipe_to_add:
         raise HTTPException(status_code=404, detail="Recipe not found")
         
+    recipes_to_ensure = get_with_sub_recipes(db, [recipe_to_add])
     current_ids = {link.recipe_id for link in plan.plan_recipes}
-    if request.recipe_id not in current_ids:
-        max_pos = -1
-        for link in plan.plan_recipes:
-            if link.position > max_pos:
-                max_pos = link.position
-                
-        new_link = orm.MealPlanRecipe(
-            plan_id=plan.id,
-            recipe_id=recipe_to_add.id,
-            position=max_pos + 1
-        )
-        db.add(new_link)
-        
-        plan.recipe_count += 1
+    
+    max_pos = -1
+    for link in plan.plan_recipes:
+        if link.position > max_pos:
+            max_pos = link.position
+
+    added_count = 0
+    for r in recipes_to_ensure:
+        if r.id not in current_ids:
+            new_link = orm.MealPlanRecipe(
+                plan_id=plan.id,
+                recipe_id=r.id,
+                position=max_pos + 1
+            )
+            db.add(new_link)
+            current_ids.add(r.id)
+            max_pos += 1
+            added_count += 1
+            
+    if added_count > 0:
+        plan.recipe_count = len(current_ids)
         plan.grocery_list = None
         plan.prep_plan = None
         
@@ -721,26 +723,35 @@ def add_recipe(plan_id: int, request: schemas.RecipeAddRequest, db: Session = De
         # If random found nothing, just return plan unchanged for now
         return plan
 
-    # Determine position (append)
+    # Determine position (append) and resolve sub-recipes
+    recipes_to_ensure = get_with_sub_recipes(db, [recipe_to_add])
+    
     max_pos = -1
     for link in plan.plan_recipes:
         if link.position > max_pos:
             max_pos = link.position
             
-    new_link = orm.MealPlanRecipe(
-        plan_id=plan.id,
-        recipe_id=recipe_to_add.id,
-        position=max_pos + 1
-    )
-    db.add(new_link)
-    
-    # Invalidate lists
-    plan.grocery_list = None
-    plan.prep_plan = None
-    plan.recipe_count += 1
-    
-    db.commit()
-    db.refresh(plan)
+    added_count = 0
+    for r in recipes_to_ensure:
+        if r.id not in current_ids:
+            new_link = orm.MealPlanRecipe(
+                plan_id=plan.id,
+                recipe_id=r.id,
+                position=max_pos + 1
+            )
+            db.add(new_link)
+            current_ids.add(r.id)
+            max_pos += 1
+            added_count += 1
+            
+    if added_count > 0:
+        # Invalidate lists
+        plan.grocery_list = None
+        plan.prep_plan = None
+        plan.recipe_count = len(current_ids)
+        
+        db.commit()
+        db.refresh(plan)
     return plan
 
 @router.post("/{plan_id}/clone", response_model=schemas.MealPlan)
