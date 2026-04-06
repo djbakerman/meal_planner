@@ -8,15 +8,26 @@ if (session_status() === PHP_SESSION_NONE) {
     // 30 Days in seconds
     $lifetime = 30 * 24 * 60 * 60;
 
+    // Set custom session save path to prevent Debian/Ubuntu system cron from cleaning them up
+    $sessionPath = __DIR__ . '/../sessions';
+    if (!is_dir($sessionPath)) {
+        mkdir($sessionPath, 0777, true);
+    }
+    session_save_path($sessionPath);
+
     // Set server-side GC max lifetime to match (prevents server deleting it)
     ini_set('session.gc_maxlifetime', (string) $lifetime);
+
+    // Detect if the connection is secure (important when behind Cloudflare proxy)
+    $isSecure = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
     // Set cookie lifetime
     session_set_cookie_params([
         'lifetime' => $lifetime,
         'path' => '/',
         'domain' => '', // Current domain
-        'secure' => isset($_SERVER['HTTPS']),
+        'secure' => $isSecure,
         'httponly' => true,
         'samesite' => 'Lax'
     ]);

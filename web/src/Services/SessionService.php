@@ -14,12 +14,24 @@ class SessionService
         if (session_status() === PHP_SESSION_NONE) {
             // Hardened Session Security with 30-day persistence
             $lifetime = 30 * 24 * 60 * 60;
+            
+            // Set custom session save path to prevent Debian/Ubuntu system cron from cleaning them up
+            $sessionPath = __DIR__ . '/../../sessions';
+            if (!is_dir($sessionPath)) {
+                mkdir($sessionPath, 0777, true);
+            }
+            session_save_path($sessionPath);
+
             ini_set('session.gc_maxlifetime', (string) $lifetime);
+
+            // Detect if the connection is secure (important when behind Cloudflare proxy)
+            $isSecure = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+                        (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
             session_start([
                 'cookie_lifetime' => $lifetime,
                 'cookie_httponly' => true,
-                'cookie_secure' => isset($_SERVER['HTTPS']), // Only if HTTPS is on
+                'cookie_secure' => $isSecure,
                 'cookie_samesite' => 'Lax',
                 'use_strict_mode' => true,
             ]);
