@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "source_folder": "Builder Staples (curated for the 90-day muscle program)",
+    "model_used": "hand-authored",
+    "notes": "Grazer-friendly, calorie-dense staples with verified macros. These make the Weekly Builder's snack/shake slots and protein floor solvable. Macros are per serving."
+  },
+  "chapters": [
+    {
+      "chapter_number": "1",
+      "chapter_title": "Builder Staples",
+      "recipe_list": [
+        "The Builder Shake",
+        "Quick Protein Shake",
+        "Greek Yogurt Power Bowl",
+        "Cottage Cheese and Pineapple Cup",
+        "Overnight Chia Protein Oats",
+        "Chicken, Rice and Broccoli Plate",
+        "Tuna and Avocado Power Toast",
+        "Peanut Butter Banana Toast",
+        "Trail Mix Scoop",
+        "Casein Night Pudding"
+      ]
+    }
+  ],
+  "recipes": [
+    {
+      "name": "The Builder Shake",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "2 mins",
+      "cook_time": "0 mins",
+      "total_time": "2 mins",
+      "calories": "660",
+      "protein": "61",
+      "carbs": "71",
+      "fat": "18",
+      "nutrition_full": "Per shake: 660 kcal, 61 g protein, 71 g carbohydrate, 18 g fat. Verified from standard ingredient data.",
+      "description": "The mid-morning anchor: 660 drinkable calories in ninety seconds. Add 5 g creatine monohydrate daily - it is flavorless here.",
+      "ingredients": [
+        "2 scoops whey protein powder",
+        "1/2 cup rolled oats (dry)",
+        "1 tablespoon peanut butter",
+        "1 medium banana",
+        "1 tablespoon chia seeds",
+        "10-12 oz cold water or ice"
+      ],
+      "instructions": [
+        "Add everything to a blender, liquids first.",
+        "Blend 45-60 seconds until smooth.",
+        "Optional daily add-in: 5 g creatine monohydrate."
+      ],
+      "tips": ["Swap water for whole milk to add roughly 150 kcal on hard training days."],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Quick Protein Shake",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "1 min",
+      "cook_time": "0 mins",
+      "total_time": "1 min",
+      "calories": "290",
+      "protein": "44",
+      "carbs": "16",
+      "fat": "7",
+      "nutrition_full": "Per shake: 290 kcal, 44 g protein, 16 g carbohydrate, 7 g fat.",
+      "description": "The protein-gap closer - light on calories, heavy on protein. The planner reaches for this when a day runs protein-short.",
+      "ingredients": [
+        "1.5 scoops whey protein powder",
+        "1 cup 2% milk"
+      ],
+      "instructions": [
+        "Shake or blend until smooth."
+      ],
+      "tips": [],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Greek Yogurt Power Bowl",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "breakfast",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "3 mins",
+      "cook_time": "0 mins",
+      "total_time": "3 mins",
+      "calories": "510",
+      "protein": "26",
+      "carbs": "69",
+      "fat": "15",
+      "nutrition_full": "Per bowl: 510 kcal, 26 g protein, 69 g carbohydrate, 15 g fat.",
+      "description": "Fast breakfast or afternoon fuel - no cooking, one bowl.",
+      "ingredients": [
+        "1 cup plain Greek yogurt",
+        "1/2 cup granola",
+        "1/2 cup blueberries",
+        "1 tablespoon honey"
+      ],
+      "instructions": [
+        "Layer yogurt, granola, and berries in a bowl.",
+        "Drizzle honey over the top."
+      ],
+      "tips": ["Stir in half a scoop of whey to lift protein to ~38 g."],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Cottage Cheese and Pineapple Cup",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "2 mins",
+      "cook_time": "0 mins",
+      "total_time": "2 mins",
+      "calories": "260",
+      "protein": "25",
+      "carbs": "19",
+      "fat": "10",
+      "nutrition_full": "Per cup: 260 kcal, 25 g protein, 19 g carbohydrate, 10 g fat.",
+      "description": "Slow-digesting casein protein in snack form - ideal afternoon or evening.",
+      "ingredients": [
+        "1 cup cottage cheese",
+        "1/2 cup pineapple chunks"
+      ],
+      "instructions": [
+        "Combine in a bowl. Done."
+      ],
+      "tips": [],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Overnight Chia Protein Oats",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "breakfast",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "5 mins",
+      "cook_time": "0 mins",
+      "total_time": "5 mins + overnight",
+      "calories": "380",
+      "protein": "33",
+      "carbs": "40",
+      "fat": "10",
+      "nutrition_full": "Per jar: 380 kcal, 33 g protein, 40 g carbohydrate, 10 g fat.",
+      "description": "Assembled the night before - breakfast is waiting when you wake up.",
+      "ingredients": [
+        "1/2 cup rolled oats",
+        "1 scoop whey or casein protein powder",
+        "1 tablespoon chia seeds",
+        "1 cup unsweetened almond milk",
+        "Cinnamon to taste"
+      ],
+      "instructions": [
+        "Stir everything together in a jar.",
+        "Refrigerate overnight; eat cold or warmed."
+      ],
+      "tips": ["Top with berries or half a sliced banana for ~50 extra kcal."],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Chicken, Rice and Broccoli Plate",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "any",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "10 mins",
+      "cook_time": "20 mins",
+      "total_time": "30 mins",
+      "calories": "560",
+      "protein": "60",
+      "carbs": "51",
+      "fat": "11",
+      "nutrition_full": "Per plate: 560 kcal, 60 g protein, 51 g carbohydrate, 11 g fat.",
+      "description": "The classic for a reason. Batch-cook five portions on Sunday and lunch is solved through Friday.",
+      "ingredients": [
+        "6 oz grilled chicken breast (cooked weight)",
+        "1 cup cooked white or brown rice",
+        "1 cup steamed broccoli",
+        "1 teaspoon olive oil",
+        "Salt, pepper, and any seasoning you like"
+      ],
+      "instructions": [
+        "Season chicken and grill or pan-cook until 165F inside.",
+        "Serve over rice with steamed broccoli; finish with olive oil and seasoning."
+      ],
+      "tips": ["Batch-cook: 2 lb chicken + 3 cups dry rice makes five plates."],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Tuna and Avocado Power Toast",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "lunch",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "5 mins",
+      "cook_time": "0 mins",
+      "total_time": "5 mins",
+      "calories": "490",
+      "protein": "35",
+      "carbs": "48",
+      "fat": "19",
+      "nutrition_full": "Per serving: 490 kcal, 35 g protein, 48 g carbohydrate, 19 g fat.",
+      "description": "Five-minute desk lunch with real protein and healthy fats.",
+      "ingredients": [
+        "1 can (5 oz) tuna, drained",
+        "1/2 avocado, mashed",
+        "2 slices whole grain bread, toasted",
+        "Lemon juice, salt, pepper"
+      ],
+      "instructions": [
+        "Mash avocado with lemon, salt, and pepper.",
+        "Spread on toast, pile tuna on top."
+      ],
+      "tips": [],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Peanut Butter Banana Toast",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "3 mins",
+      "cook_time": "0 mins",
+      "total_time": "3 mins",
+      "calories": "505",
+      "protein": "16",
+      "carbs": "72",
+      "fat": "19",
+      "nutrition_full": "Per serving: 505 kcal, 16 g protein, 72 g carbohydrate, 19 g fat.",
+      "description": "Calorie density on demand - the easiest 500 calories in the kitchen, best before or after training.",
+      "ingredients": [
+        "2 slices whole grain bread, toasted",
+        "2 tablespoons peanut butter",
+        "1 banana, sliced"
+      ],
+      "instructions": [
+        "Toast, spread, top with banana."
+      ],
+      "tips": ["Drizzle of honey adds ~60 kcal when the ramp steps up."],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Trail Mix Scoop",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "1 min",
+      "cook_time": "0 mins",
+      "total_time": "1 min",
+      "calories": "380",
+      "protein": "9",
+      "carbs": "26",
+      "fat": "29",
+      "nutrition_full": "Per scoop: 380 kcal, 9 g protein, 26 g carbohydrate, 29 g fat.",
+      "description": "Pocket calories for the grazer - no prep, no refrigeration, lives in the desk drawer.",
+      "ingredients": [
+        "1/4 cup mixed nuts",
+        "2 tablespoons dark chocolate chips"
+      ],
+      "instructions": [
+        "Pre-portion into small bags or containers - eyeballing trail mix is how surpluses get away from you."
+      ],
+      "tips": [],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    },
+    {
+      "name": "Casein Night Pudding",
+      "chapter": "Builder Staples",
+      "chapter_number": "1",
+      "meal_type": "snack",
+      "dish_role": "main",
+      "serves": "1",
+      "prep_time": "3 mins",
+      "cook_time": "0 mins",
+      "total_time": "3 mins",
+      "calories": "320",
+      "protein": "44",
+      "carbs": "18",
+      "fat": "9",
+      "nutrition_full": "Per serving: 320 kcal, 44 g protein, 18 g carbohydrate, 9 g fat.",
+      "description": "Slow-release protein before bed - feeds overnight muscle repair, which is where the 80/20 book says growth actually happens.",
+      "ingredients": [
+        "1.5 scoops casein protein powder",
+        "1 tablespoon chia seeds",
+        "3/4 cup 2% milk"
+      ],
+      "instructions": [
+        "Stir milk into powder gradually until pudding-thick.",
+        "Stir in chia; rest 5 minutes (or refrigerate) and eat."
+      ],
+      "tips": [],
+      "sub_recipes": [],
+      "dietary_info": [],
+      "is_complete": true
+    }
+  ]
+}

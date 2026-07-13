@@ -87,6 +87,8 @@ class MealPlan(Base):
     excluded_ingredients = Column(JSON, default=list, nullable=False)
     grocery_list = Column(JSON)
     prep_plan = Column(JSON)
+    plan_type = Column(String(20), default='classic')  # 'classic' | 'weekly'
+    week_structure = Column(JSON)  # output of weekly_planner.build_week()
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

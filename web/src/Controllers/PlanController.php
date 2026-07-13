@@ -166,6 +166,75 @@ class PlanController
         ]);
     }
 
+    public function weeklyForm(Request $request, Response $response, $args): Response
+    {
+        $catalogs = $this->api->get('/api/catalogs');
+
+        $this->view->setLayout('layouts/main.php');
+        return $this->view->render($response, 'plans/weekly.php', [
+            'title' => 'Weekly Builder',
+            'catalogs' => $catalogs
+        ]);
+    }
+
+    public function generateWeekly(Request $request, Response $response, $args): Response
+    {
+        $data = $request->getParsedBody();
+
+        $payload = [
+            'week_number' => max(1, min(13, (int) ($data['week_number'] ?? 1))),
+            'mode' => ($data['mode'] ?? 'variety') === 'simple' ? 'simple' : 'variety',
+            'protein_target' => max(100, min(260, (int) ($data['protein_target'] ?? 180))),
+            'use_llm' => !empty($data['use_llm']),
+            'enrich' => true,
+        ];
+
+        if (!empty($data['training_days']) && is_array($data['training_days'])) {
+            $payload['training_days'] = array_values($data['training_days']);
+        }
+
+        if (!empty($data['kcal_override'])) {
+            $payload['kcal_override'] = (int) $data['kcal_override'];
+        }
+
+        if (!empty($data['catalog_ids'])) {
+            $ids = is_array($data['catalog_ids']) ? $data['catalog_ids'] : [$data['catalog_ids']];
+            $valid_ids = array_filter($ids, function ($v) {
+                return !empty($v);
+            });
+            if (!empty($valid_ids)) {
+                $payload['catalog_ids'] = array_map('intval', array_values($valid_ids));
+            }
+        }
+
+        if (!empty($data['excluded_ingredients'])) {
+            $exclusions = explode(',', $data['excluded_ingredients']);
+            $payload['excluded_ingredients'] = array_map('trim', $exclusions);
+        }
+
+        $user = $request->getAttribute('user');
+        if ($user) {
+            $payload['user_id'] = $user['id'];
+        }
+
+        $newPlan = $this->api->post('/api/plans/generate-weekly', $payload);
+
+        if (isset($newPlan['id'])) {
+            return $response->withHeader('Location', url('/plans/' . $newPlan['id']))->withStatus(302);
+        }
+
+        if (isset($newPlan['detail'])) {
+            $msg = is_string($newPlan['detail']) ? $newPlan['detail'] : json_encode($newPlan['detail']);
+            $this->session->flash('error', "API Error: " . $msg);
+        } elseif (isset($newPlan['error'])) {
+            $this->session->flash('error', "System Error: " . $newPlan['error']);
+        } else {
+            $this->session->flash('error', "Failed to generate weekly plan (Unknown error).");
+        }
+
+        return $response->withHeader('Location', url('/plans/weekly'))->withStatus(302);
+    }
+
     public function store(Request $request, Response $response, $args): Response
     {
         $data = $request->getParsedBody();

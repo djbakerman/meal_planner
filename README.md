@@ -394,6 +394,89 @@ When selecting recipes, the planner automatically:
 
 ---
 
+## Weekly Builder (Macro-Aware Plans)
+
+Builds a full 7-day plan against calorie and protein targets instead of random selection.
+Designed around a 90-day muscle program: a graduated calorie ramp, a grazer meal structure
+(three meals + three snack/shake slots), a daily protein floor, and two planning modes.
+
+### The Calorie Ramp
+
+| Program Week | Training Days | Rest Days |
+|--------------|---------------|-----------|
+| 1–2 | 2,300 kcal | 2,050 kcal |
+| 3 | 2,450 kcal | 2,200 kcal |
+| 4 | 2,600 kcal | 2,350 kcal |
+| 5 | 2,700 kcal | 2,450 kcal |
+| 6–13 | 2,800 kcal | 2,550 kcal |
+
+Protein floor defaults to 180 g/day. Override either via the form or API.
+
+### Modes
+
+- **Variety**: rotates recipes (max 2 uses per week, avoids same-slot repeats on consecutive
+  days, deprioritizes recipes from your last two weekly plans).
+- **Simple**: builds one small staple menu and repeats it all week for batch cooking
+  (lunch/dinner alternate between two options; rest days drop the evening snack).
+
+### Web UI
+
+`/plans/weekly` — the Weekly Builder form (also linked from the classic generator).
+Weekly plans render on the plan page as a 7-day grid with per-slot and per-day macros.
+Grocery list and prep plan generation work on weekly plans exactly as before.
+
+### API
+
+```bash
+# Generate a weekly plan
+curl -X POST http://localhost:8000/api/plans/generate-weekly \
+  -H "Content-Type: application/json" \
+  -d '{"week_number": 1, "mode": "variety", "protein_target": 180}'
+
+# One-time macro backfill for recipes missing nutrition data
+curl -X POST http://localhost:8000/api/plans/enrich-macros \
+  -H "Content-Type: application/json" \
+  -d '{"use_llm": true}'
+```
+
+Macro estimation uses the configured LLM (Ollama or Claude) once per recipe and caches
+results in the recipe rows; a deterministic ingredient-table estimator is the fallback
+when no model is reachable (`"use_llm": false`).
+
+### Bundled Catalogs
+
+| File | Contents |
+|------|----------|
+| `data/catalogs/builder_staples.json` | 10 grazer staples (shakes, bowls, plates) with verified macros — import this or the snack slots have little to work with |
+| `data/catalogs/perfect_bodybuilding_cookbook.json` | 26 recipes parsed from The Perfect Bodybuilding Cookbook (macros filled by enrichment) |
+
+### Deploying (production checklist)
+
+```bash
+# 1. Apply the migration
+mysql -u <user> -p meal_planner < database/migrations/006_weekly_plans.sql
+
+# 2. Import the new catalogs (--enrich fills macros via the LLM at import time)
+python scripts/import_catalog.py data/catalogs/builder_staples.json
+python scripts/import_catalog.py data/catalogs/perfect_bodybuilding_cookbook.json --enrich
+
+# 3. Backfill macros on EXISTING recipes (once)
+curl -X POST http://localhost:8000/api/plans/enrich-macros -H "Content-Type: application/json" -d '{}'
+
+# 4. Restart the FastAPI service
+```
+
+### Testing Without a Database
+
+```bash
+python scripts/test_weekly_planner.py
+```
+
+Runs the full pipeline (schema, catalog import, macro backfill, three plan generations
+through the real API) against a throwaway SQLite database.
+
+---
+
 ## Complete Workflow Example
 
 ### 1. Capture Cookbook Pages

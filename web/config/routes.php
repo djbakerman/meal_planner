@@ -37,6 +37,8 @@ return function (App $app) {
         // Plan Routes
         $group->get('/plans', [PlanController::class, 'index']);
         $group->get('/plans/new', [PlanController::class, 'create']);
+        $group->get('/plans/weekly', [PlanController::class, 'weeklyForm']);
+        $group->post('/plans/weekly', [PlanController::class, 'generateWeekly']);
         $group->post('/plans', [PlanController::class, 'store']);
         $group->post('/plans/quick-add', [PlanController::class, 'quickAdd']);
         $group->get('/plans/{id}', [PlanController::class, 'show']);

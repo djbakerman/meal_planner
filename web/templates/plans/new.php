@@ -1,8 +1,10 @@
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
         <div class="card shadow-lg border-0">
-            <div class="card-header bg-primary text-white p-4">
+            <div class="card-header bg-primary text-white p-4 d-flex align-items-center">
                 <h2 class="h4 mb-0">✨ Generate New Meal Plan</h2>
+                <a href="<?= url('/plans/weekly') ?>" class="btn btn-sm btn-outline-light ms-auto"
+                    title="Macro-aware 7-day plan with calorie and protein targets">📅 Weekly Builder</a>
             </div>
             <div class="card-body p-4">
                 <form action="<?= url('/plans') ?>" method="POST">

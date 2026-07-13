@@ -84,10 +84,100 @@
     <?php endif; ?>
 </div>
 
+<?php
+// ---------- Weekly Builder rendering (macro-aware plans) ----------
+$ws = $plan['week_structure'] ?? null;
+if (is_string($ws)) {
+    $ws = json_decode($ws, true);
+}
+$isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days']);
+?>
+<?php if ($isWeekly): ?>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-dark text-white d-flex flex-wrap align-items-center gap-3 py-3">
+            <span class="fs-4">📅</span>
+            <div>
+                <strong>Week <?= (int) $ws['week_number'] ?> — <?= h($ws['phase'] ?? '') ?> phase</strong>
+                <span class="badge bg-secondary ms-2"><?= h(ucfirst($ws['mode'] ?? 'variety')) ?> mode</span>
+            </div>
+            <div class="ms-auto small text-nowrap">
+                Targets:
+                <span class="badge bg-success"><?= (int) $ws['targets']['training_calories'] ?> kcal training</span>
+                <span class="badge bg-info text-dark"><?= (int) $ws['targets']['rest_calories'] ?> kcal rest</span>
+                <span class="badge bg-warning text-dark"><?= (int) $ws['targets']['protein'] ?> g protein</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <?php foreach ($ws['days'] as $day):
+                    $tot = $day['totals'];
+                    $tgt = (int) $day['target_calories'];
+                    $kcalOk = $tgt > 0 && abs($tot['calories'] - $tgt) <= 0.06 * $tgt;
+                    $protOk = $tot['protein'] >= ($day['protein_target'] ?? 180) - 10;
+                    ?>
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border <?= $day['training_day'] ? 'border-success' : 'border-light' ?>">
+                            <div class="card-header py-2 d-flex align-items-center">
+                                <strong><?= h($day['day']) ?></strong>
+                                <span class="badge ms-2 <?= $day['training_day'] ? 'bg-success' : 'bg-secondary' ?>">
+                                    <?= $day['training_day'] ? 'Training' : 'Rest' ?>
+                                </span>
+                                <span class="ms-auto small text-muted"><?= $tgt ?> kcal goal</span>
+                            </div>
+                            <ul class="list-group list-group-flush small">
+                                <?php foreach ($day['slots'] as $slot): ?>
+                                    <li class="list-group-item py-2">
+                                        <div class="text-muted" style="font-size: 0.72rem;"><?= h($slot['slot']) ?></div>
+                                        <div class="d-flex align-items-baseline">
+                                            <a href="<?= url('/recipes/' . (int) $slot['recipe_id']) ?>"
+                                                class="text-decoration-none me-auto"><?= h($slot['name']) ?></a>
+                                            <?php if (abs($slot['servings'] - 1.0) > 0.01): ?>
+                                                <span class="badge bg-light text-dark border ms-1">&times;<?= h($slot['servings']) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">
+                                            <?= (int) $slot['calories'] ?> kcal &middot; <?= h($slot['protein']) ?>g protein
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <div class="card-footer py-2 small d-flex justify-content-between">
+                                <span class="<?= $kcalOk ? 'text-success' : 'text-warning' ?> fw-bold">
+                                    <?= (int) $tot['calories'] ?> kcal
+                                </span>
+                                <span class="<?= $protOk ? 'text-success' : 'text-warning' ?> fw-bold">
+                                    <?= h($tot['protein']) ?>g protein
+                                </span>
+                                <span class="text-muted">C <?= h($tot['carbs']) ?> / F <?= h($tot['fat']) ?></span>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <?php if (!empty($ws['week_average'])): ?>
+                <div class="alert alert-light border mt-3 mb-1 small d-flex flex-wrap gap-3">
+                    <strong>Week average:</strong>
+                    <span><?= (int) $ws['week_average']['calories'] ?> kcal</span>
+                    <span><?= h($ws['week_average']['protein']) ?>g protein</span>
+                    <span><?= h($ws['week_average']['carbs']) ?>g carbohydrate</span>
+                    <span><?= h($ws['week_average']['fat']) ?>g fat</span>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($ws['notes'])): ?>
+                <ul class="small text-muted mt-2 mb-0">
+                    <?php foreach ($ws['notes'] as $note): ?>
+                        <li><?= h($note) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="row">
     <!-- Recipes Column -->
     <div class="col-lg-8">
-        <h4 class="mb-3">Selected Recipes</h4>
+        <h4 class="mb-3"><?= $isWeekly ? 'Recipes Used This Week' : 'Selected Recipes' ?></h4>
         <?php if (empty($plan['plan_recipes'])): ?>
             <p>No recipes in this plan.</p>
         <?php else: ?>

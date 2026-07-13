@@ -1,0 +1,116 @@
+<div class="row justify-content-center">
+    <div class="col-md-9 col-lg-7">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-dark text-white p-4 d-flex align-items-center">
+                <h2 class="h4 mb-0">📅 Weekly Builder — Macro-Aware Plan</h2>
+                <a href="<?= url('/plans/new') ?>" class="btn btn-sm btn-outline-light ms-auto">Classic generator</a>
+            </div>
+            <div class="card-body p-4">
+
+                <div class="alert alert-info small">
+                    Builds a full 7-day grazer plan (three meals + three snack slots) against the 90-day
+                    calorie ramp: weeks 1–2 start near current intake and climb ~150 kcal per week to the
+                    Build-phase target. Protein floor is enforced first, calories second, variety third.
+                </div>
+
+                <form action="<?= url('/plans/weekly') ?>" method="POST">
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Program Week (1–13)</label>
+                            <select class="form-select" name="week_number">
+                                <?php for ($w = 1; $w <= 13; $w++):
+                                    $phase = $w <= 4 ? 'Foundation' : ($w <= 8 ? 'Build' : ($w <= 12 ? 'Define' : 'Test Week'));
+                                    $kcal = $w <= 2 ? 2300 : ($w == 3 ? 2450 : ($w == 4 ? 2600 : ($w == 5 ? 2700 : 2800)));
+                                    ?>
+                                    <option value="<?= $w ?>" <?= $w == 1 ? 'selected' : '' ?>>
+                                        Week <?= $w ?> — <?= $phase ?> (<?= $kcal ?> kcal training days)
+                                    </option>
+                                <?php endfor; ?>
+                            </select>
+                            <div class="form-text">Drives the calorie ramp. Repeat a week if the jump feels fast.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Mode</label>
+                            <div class="form-check card-radio mb-2">
+                                <input class="form-check-input" type="radio" name="mode" value="variety" id="modeVariety" checked>
+                                <label class="form-check-label" for="modeVariety">
+                                    🔄 <strong>Variety</strong> — rotate recipes, max 2 uses per week
+                                </label>
+                            </div>
+                            <div class="form-check card-radio">
+                                <input class="form-check-input" type="radio" name="mode" value="simple" id="modeSimple">
+                                <label class="form-check-label" for="modeSimple">
+                                    🍗 <strong>Keep It Simple</strong> — small staple pool, batch-cook repeats
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold mb-2">Training Days</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <?php
+                            $dayList = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                            $defaultTraining = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                            foreach ($dayList as $d): ?>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="training_days[]"
+                                        value="<?= $d ?>" id="td_<?= $d ?>" <?= in_array($d, $defaultTraining) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="td_<?= $d ?>"><?= substr($d, 0, 3) ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="form-text">Rest days automatically run 250 kcal lighter.</div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Protein Target (g/day)</label>
+                            <input type="number" class="form-control" name="protein_target" value="180" min="100" max="260">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Calorie Override</label>
+                            <input type="number" class="form-control" name="kcal_override" placeholder="(use ramp)" min="1600" max="4000">
+                            <div class="form-text">Leave blank to follow the ramp.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Exclude Ingredients</label>
+                            <input type="text" class="form-control" name="excluded_ingredients"
+                                placeholder="e.g. shrimp, peanuts">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Catalogs (Optional)</label>
+                        <select class="form-select" name="catalog_ids[]" multiple size="4">
+                            <option value="" selected>Any / All Catalogs</option>
+                            <?php if (!empty($catalogs)): ?>
+                                <?php foreach ($catalogs as $catalog): ?>
+                                    <option value="<?= $catalog['id'] ?>">
+                                        <?= h($catalog['name']) ?> (<?= $catalog['recipe_count'] ?> recipes)
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                        <div class="form-text">
+                            Tip: include the <em>Builder Staples</em> catalog — its shakes and quick snacks are
+                            what make the grazer slots and protein floor solvable.
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="use_llm" value="1" id="useLlm" checked>
+                        <label class="form-check-label" for="useLlm">
+                            Use AI to estimate macros for recipes missing them (first run only; results are cached)
+                        </label>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-dark btn-lg">Build My Week</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

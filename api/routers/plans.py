@@ -194,6 +194,132 @@ def generate_plan(request: schemas.PlanGenerateRequest, db: Session = Depends(ge
     db.refresh(new_plan)
     return new_plan
 
+
+@router.post("/generate-weekly", response_model=schemas.MealPlan)
+def generate_weekly_plan(request: schemas.WeeklyPlanRequest, db: Session = Depends(get_db)):
+    """
+    Generate a macro-aware 7-day plan: six grazer slots per day, calorie targets
+    that follow the 90-day ramp (week_number 1-13), a daily protein floor, and
+    either 'variety' rotation or 'simple' batch-cook repetition.
+    """
+    from api.services import nutrition_service, weekly_planner
+
+    # --- Candidate pool (same filters as classic generate) ---
+    query = db.query(orm.Recipe).filter(orm.Recipe.dish_role != 'sub_recipe')
+    if request.catalog_ids:
+        query = query.filter(orm.Recipe.catalog_id.in_(request.catalog_ids))
+    candidates = query.all()
+
+    exclusions = [e.strip().lower() for e in request.excluded_ingredients] if request.excluded_ingredients else []
+    if exclusions:
+        filtered = []
+        for r in candidates:
+            if any(ex in r.name.lower() for ex in exclusions):
+                continue
+            if any(any(ex in ing.ingredient_text.lower() for ex in exclusions) for ing in r.ingredients):
+                continue
+            filtered.append(r)
+        candidates = filtered
+
+    # --- Ensure macros exist (cached; only recipes still missing them are estimated) ---
+    if request.enrich:
+        try:
+            nutrition_service.ensure_recipe_macros(
+                db, candidates, model=request.model, allow_llm=request.use_llm
+            )
+        except Exception as e:
+            print(f"Macro enrichment failed (continuing with existing data): {e}")
+
+    usable = [r for r in candidates if nutrition_service.get_macros(r)]
+    if len(usable) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Only {len(usable)} recipes have usable macros. Import the Builder Staples "
+                "catalog (data/catalogs/builder_staples.json) and/or run POST /api/plans/enrich-macros."
+            ),
+        )
+
+    # --- Rotation memory: deprioritize recipes used in the user's last two weekly plans ---
+    recent_ids = []
+    if request.user_id:
+        prior = (
+            db.query(orm.MealPlan)
+            .filter(orm.MealPlan.user_id == request.user_id, orm.MealPlan.plan_type == 'weekly')
+            .order_by(orm.MealPlan.created_at.desc())
+            .limit(2)
+            .all()
+        )
+        for p in prior:
+            recent_ids.extend([link.recipe_id for link in p.plan_recipes])
+
+    # --- Build the week ---
+    try:
+        week = weekly_planner.build_week(
+            usable,
+            week_number=request.week_number,
+            mode=request.mode if request.mode in ('variety', 'simple') else 'variety',
+            training_days=request.training_days,
+            protein_target=request.protein_target,
+            kcal_override=request.kcal_override,
+            recent_recipe_ids=recent_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # --- Persist: plan row + distinct recipe links (keeps grocery/prep features working) ---
+    distinct_ids = []
+    for day in week['days']:
+        for slot in day['slots']:
+            if slot['recipe_id'] not in distinct_ids:
+                distinct_ids.append(slot['recipe_id'])
+
+    plan_name = f"Week {request.week_number} Builder Plan ({week['phase']}, {week['mode']})"
+    clean_exclusions = normalize_exclusions(request.excluded_ingredients) if request.excluded_ingredients else []
+
+    new_plan = orm.MealPlan(
+        name=plan_name,
+        plan_type='weekly',
+        week_structure=week,
+        recipe_count=len(distinct_ids),
+        meal_types=["breakfast", "lunch", "dinner", "snack"],
+        target_servings=1,
+        user_id=request.user_id,
+        created_at=datetime.now(),
+        excluded_ingredients=clean_exclusions,
+    )
+    db.add(new_plan)
+    db.flush()
+    for i, rid in enumerate(distinct_ids):
+        db.add(orm.MealPlanRecipe(plan_id=new_plan.id, recipe_id=rid, position=i))
+    db.commit()
+    db.refresh(new_plan)
+    return new_plan
+
+
+@router.post("/enrich-macros", response_model=schemas.EnrichMacrosResponse)
+def enrich_macros(request: schemas.EnrichMacrosRequest, db: Session = Depends(get_db)):
+    """
+    One-time macro backfill: estimate per-serving calories/protein/carbs/fat for
+    recipes missing them and cache the results on the recipe rows.
+    """
+    from api.services import nutrition_service
+
+    query = db.query(orm.Recipe).filter(orm.Recipe.dish_role != 'sub_recipe')
+    if request.catalog_ids:
+        query = query.filter(orm.Recipe.catalog_id.in_(request.catalog_ids))
+    recipes = query.all()
+    if request.limit:
+        # Only process rows still missing macros, up to the cap
+        missing = [r for r in recipes if not nutrition_service.get_macros(r)]
+        recipes = missing[: request.limit]
+
+    stats = nutrition_service.ensure_recipe_macros(
+        db, recipes, model=request.model, allow_llm=request.use_llm
+    )
+    return schemas.EnrichMacrosResponse(processed=len(recipes), **stats)
+
+
 @router.get("/", response_model=List[schemas.MealPlan])
 def read_plans(
     skip: int = 0, 

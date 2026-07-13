@@ -74,6 +74,9 @@ class RecipeBase(BaseModel):
     prep_time: Optional[str] = None
     cook_time: Optional[str] = None
     calories: Optional[str] = None
+    protein: Optional[str] = None
+    carbs: Optional[str] = None
+    fat: Optional[str] = None
     description: Optional[str] = None
     instructions: Optional[Any] = []
     tips: Optional[Any] = []
@@ -112,6 +115,33 @@ class PlanGenerateRequest(BaseModel):
     excluded_ingredients: List[str] = []
     use_cumulative_count: bool = False
     target_servings: int = 4
+
+class WeeklyPlanRequest(BaseModel):
+    """Macro-aware 7-day plan (see services/weekly_planner.py)."""
+    week_number: int = 1               # 1-13 of the 90-day program; drives the calorie ramp
+    mode: str = "variety"              # 'variety' | 'simple'
+    training_days: List[str] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    protein_target: int = 180          # grams/day
+    kcal_override: Optional[int] = None  # replaces the ramp's training-day target
+    catalog_ids: List[int] = []
+    excluded_ingredients: List[str] = []
+    user_id: Optional[int] = None
+    enrich: bool = True                # estimate macros for recipes missing them
+    use_llm: bool = True               # allow AI estimation (falls back to ingredient table)
+    model: Optional[str] = None        # LLM override for enrichment
+
+class EnrichMacrosRequest(BaseModel):
+    catalog_ids: List[int] = []
+    model: Optional[str] = None
+    use_llm: bool = True
+    limit: Optional[int] = None        # cap how many recipes to process in one call
+
+class EnrichMacrosResponse(BaseModel):
+    processed: int
+    already: int
+    via_llm: int
+    via_table: int
+    skipped: int
 
 class MealPlanRecipe(BaseModel):
     recipe_id: int
@@ -162,6 +192,8 @@ class MealPlan(BaseModel):
     excluded_ingredients: List[str] = []
     grocery_list: Optional[Any] = None
     prep_plan: Optional[Any] = None
+    plan_type: Optional[str] = "classic"
+    week_structure: Optional[Any] = None
 
     class Config:
         from_attributes = True
