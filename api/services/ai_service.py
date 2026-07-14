@@ -202,6 +202,11 @@ Please provide:
 
 7. Do not use ** bold markers or markdown emphasis anywhere - plain text with checkboxes only.
 
+8. PACKAGE MUST COVER NEED: state the needed amount, then a package size that is
+   AT LEAST that amount. Check the arithmetic: 11 cups of milk does NOT fit in a
+   half-gallon (8 cups) - that needs a gallon. Never recommend a package smaller
+   than the stated need.
+
 Format the list clearly with sections and checkboxes (□)."""
 
     # Use default model from config if not specified
@@ -282,6 +287,12 @@ FORMATTING RULES:
    spices in teaspoons. If a consolidated amount looks absurd for home
    cooking, state the sensible amount instead.
 8. Do not use ** bold markers or markdown emphasis anywhere.
+9. ONE PREP PATH PER RECIPE: Sunday tasks and day-of tasks must tell one
+   consistent story - never pre-cook something day-of instructions then
+   re-cook or re-form (e.g. ground meat destined for patties is shaped and
+   chilled RAW on Sunday, cooked day-of; it is never browned loose first).
+10. Anything eaten on Monday or Tuesday must be fully ready by Sunday night -
+   never schedule an item's preparation after the days it is eaten.
 """
 
     return llm.query_llm(prompt, model=model)

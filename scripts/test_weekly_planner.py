@@ -127,6 +127,14 @@ def check_week(week, label):
             has_evening = any(s["slot"] == "Evening Snack" for s in day["slots"])
             if not day["training_day"] and has_evening:
                 problems.append(f"{label} {day['day']}: rest day still has an evening snack")
+
+    # Both modes: lunch and dinner must not serve the same recipe on the same day
+    # (the pool in this test is large enough that the dedupe should always hold)
+    for day in week["days"]:
+        lunch = next((s for s in day["slots"] if s["slot"] == "Lunch"), None)
+        dinner = next((s for s in day["slots"] if s["slot"] == "Dinner"), None)
+        if lunch and dinner and lunch["recipe_id"] == dinner["recipe_id"]:
+            problems.append(f"{label} {day['day']}: same recipe for lunch and dinner")
     return problems
 
 

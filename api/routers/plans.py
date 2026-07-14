@@ -545,16 +545,29 @@ def _weekly_prompt_inputs(plan):
     if not ws or not ws.get('days'):
         return None, None
     servings_map = {}
+    usage = {}  # recipe_id -> {'name': str, 'when': ["Monday Lunch (x1.5)", ...]}
     for day in ws['days']:
         for slot in day.get('slots', []):
             rid = slot.get('recipe_id')
             servings_map[rid] = round(servings_map.get(rid, 0) + float(slot.get('servings', 1)), 2)
+            entry = usage.setdefault(rid, {'name': slot.get('name', ''), 'when': []})
+            mult = float(slot.get('servings', 1))
+            mult_txt = f" (x{mult:g})" if abs(mult - 1.0) > 0.01 else ""
+            entry['when'].append(f"{day['day']} {slot.get('slot', '')}{mult_txt}")
     lines = [
         "This is a 7-day plan for one person with six daily slots "
         "(breakfast, mid-morning, lunch, afternoon snack, dinner, evening snack).",
+        "",
+        "EATING SCHEDULE (time every batch against these days - anything eaten early "
+        "in the week must be ready by Monday; if usage days exceed an item's safe "
+        "storage, split it into two batches):",
     ]
+    for rid, u in usage.items():
+        lines.append(f"- {u['name']}: {', '.join(u['when'])} "
+                     f"[total {servings_map[rid]:g} servings]")
     cook_plan = ws.get('cook_plan') or []
     if cook_plan:
+        lines.append("")
         lines.append("Dinners are cooked once and produce two portions - the second is the "
                      "next day's lunch. Cook events:")
         for c in cook_plan:

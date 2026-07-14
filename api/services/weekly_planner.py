@@ -259,11 +259,23 @@ def _fit_slot(info: dict, day_kcal: float, active_share_sum: float, slot_name: s
 
 def _build_simple_menu(pool: List[dict], day_kcal: float, protein_target: float,
                        rng: random.Random, recent_ids: set) -> dict:
+    """One fixed staple menu. Recipes are distinct across slots (no eating the
+    same main for lunch AND dinner on the same day), relaxing only when the
+    pool is too small to allow it."""
     menu = {}
+    used = set()
     for slot_name, share, slot_types in SLOTS:
         take = 2 if slot_name in ('Lunch', 'Dinner') else 1
-        menu[slot_name] = _pick_menu(pool, slot_name, take, day_kcal, protein_target,
-                                     rng, recent_ids, set())
+        picks = _pick_menu(pool, slot_name, take, day_kcal, protein_target,
+                           rng, recent_ids, used)
+        if len(picks) < take:  # sparse pool: allow reuse rather than leave holes
+            seen = {p['id'] for p in picks}
+            extra = [p for p in _pick_menu(pool, slot_name, take, day_kcal, protein_target,
+                                           rng, recent_ids, set())
+                     if p['id'] not in seen]
+            picks += extra[: take - len(picks)]
+        used.update(p['id'] for p in picks)
+        menu[slot_name] = picks
     return menu
 
 
@@ -310,7 +322,10 @@ def build_week(recipes, week_number: int = 1, mode: str = 'variety',
 
             if mode == 'simple':
                 options = menu.get(slot_name) or []
-                info = _rotate(options, day_idx) if options else None
+                # Offset the dinner rotation so lunch and dinner never land on
+                # the same alternation phase (belt to the menu dedupe's braces)
+                rotate_idx = day_idx + 1 if slot_name == 'Dinner' else day_idx
+                info = _rotate(options, rotate_idx) if options else None
             else:
                 if slot_name == 'Breakfast':
                     info = _rotate(menu['breakfasts'], day_idx)
@@ -421,8 +436,11 @@ def build_week(recipes, week_number: int = 1, mode: str = 'variety',
         'distinct_recipes': len(distinct_ids),
         'week_average': avg,
         'notes': [
-            'Cooking budget: about {} distinct recipes this week. Dinners are cooked '
-            'double and roll into the next day\'s lunch.'.format(len(distinct_ids)),
+            ('Cooking budget: about {} distinct recipes this week. Dinners are cooked '
+             'double and roll into the next day\'s lunch.'.format(len(distinct_ids)))
+            if mode != 'simple' else
+            ('Cooking budget: {} distinct recipes on one fixed menu - batch-cook on '
+             'Sunday; lunches and dinners alternate between two mains each.'.format(len(distinct_ids))),
             'Servings are multipliers of one recipe serving (1.5 = one and a half servings).',
             'Add 5 g creatine monohydrate to any shake, daily - training and rest days alike.',
             'Weigh in each morning; judge the week by its average, not by any single day.',
