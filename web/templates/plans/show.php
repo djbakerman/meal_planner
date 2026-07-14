@@ -454,7 +454,19 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
 
     <!-- AI Output Column (Placeholders for Module 5) -->
     <div class="col-lg-4">
-        <?php if (!empty($plan['grocery_list'])): ?>
+        <?php
+        // Defensive: JSON columns can arrive as strings depending on the
+        // driver/serialization path (same guard week_structure has above)
+        foreach (['grocery_list', 'prep_plan'] as $aiField) {
+            if (isset($plan[$aiField]) && is_string($plan[$aiField])) {
+                $decoded = json_decode($plan[$aiField], true);
+                if ($decoded !== null) {
+                    $plan[$aiField] = $decoded;
+                }
+            }
+        }
+        ?>
+        <?php if (!empty($plan['grocery_list']['content'])): ?>
             <?php
             $rawContent = $plan['grocery_list']['content'] ?? '';
             $lines = explode("\n", $rawContent);
@@ -537,7 +549,7 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
             </script>
         <?php endif; ?>
 
-        <?php if (!empty($plan['prep_plan'])): ?>
+        <?php if (!empty($plan['prep_plan']['content'])): ?>
             <?php
             // Render the prep plan like the grocery list: checkbox tasks + section headers
             $prepRaw = $plan['prep_plan']['content'] ?? '';
