@@ -414,10 +414,16 @@ Protein floor defaults to 180 g/day. Override either via the form or API.
 
 ### Modes
 
-- **Variety**: rotates recipes (max 2 uses per week, avoids same-slot repeats on consecutive
-  days, deprioritizes recipes from your last two weekly plans).
-- **Simple**: builds one small staple menu and repeats it all week for batch cooking
-  (lunch/dinner alternate between two options; rest days drop the evening snack).
+- **Variety (balanced cooking budget)**: ~14 distinct recipes per week — 3 rotating
+  breakfasts, 4 dinner mains each cooked double so tonight's dinner becomes tomorrow's
+  lunch, a Monday lunch anchor, and 2+2 rotating snacks/shakes. Snack slots enforce
+  protein floors (no cookies posing as snacks), recipes with sub-recipe chains are
+  deprioritized, serving multipliers stay clean (0.5 / 1 / 1.5 / 2), and recipes from
+  your last two weekly plans rotate out. The plan includes a cook_plan (which dinner
+  gets cooked when, and what each cook covers).
+- **Simple**: one fixed staple menu repeated all week for batch cooking
+  (lunch/dinner alternate between two options).
+- Both modes drop the evening snack on rest days to hit the lighter target.
 
 ### Web UI
 

@@ -99,6 +99,11 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
             <div>
                 <strong>Week <?= (int) $ws['week_number'] ?> — <?= h($ws['phase'] ?? '') ?> phase</strong>
                 <span class="badge bg-secondary ms-2"><?= h(ucfirst($ws['mode'] ?? 'variety')) ?> mode</span>
+                <?php if (!empty($ws['distinct_recipes'])): ?>
+                    <span class="badge bg-light text-dark ms-1" title="Cooking budget: distinct recipes this week">
+                        🍳 <?= (int) $ws['distinct_recipes'] ?> recipes
+                    </span>
+                <?php endif; ?>
             </div>
             <div class="ms-auto small text-nowrap">
                 Targets:
@@ -138,6 +143,11 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                                         <div class="text-muted" style="font-size: 0.75rem;">
                                             <?= (int) $slot['calories'] ?> kcal &middot; <?= h($slot['protein']) ?>g protein
                                         </div>
+                                        <?php if (!empty($slot['note'])): ?>
+                                            <div class="fst-italic" style="font-size: 0.7rem; color: #8a6d3b;">
+                                                <?= h($slot['note']) ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -494,15 +504,67 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
         <?php endif; ?>
 
         <?php if (!empty($plan['prep_plan'])): ?>
+            <?php
+            // Render the prep plan like the grocery list: checkbox tasks + section headers
+            $prepRaw = $plan['prep_plan']['content'] ?? '';
+            $prepLines = explode("\n", $prepRaw);
+            $prepHtml = "";
+            foreach ($prepLines as $line) {
+                $tLine = trim($line);
+                if ($tLine === '' || preg_match('/^[-=_]{3,}$/', $tLine)) {
+                    continue;
+                } elseif (preg_match('/^(?:-\s*)?(?:\[\s*\]|□)\s*(.+)$/u', $tLine, $m)) {
+                    $task = h(trim($m[1]));
+                    $prepHtml .= '<label class="grocery-item d-flex align-items-start mb-2 rounded" style="cursor:pointer; transition: all 0.2s;" onclick="toggleGroceryItem(event, this)"><input type="checkbox" class="form-check-input me-2 mt-1 flex-shrink-0"> <span class="grocery-text">' . $task . '</span></label>';
+                } elseif (preg_match('/^#{1,4}\s*(.+)$/', $tLine, $m) || preg_match('/^(🥩|🔪|🥣|🗓|⚠️|📋|⏱|📦)/u', $tLine)) {
+                    $header = isset($m[1]) ? $m[1] : $tLine;
+                    $cleanHeader = trim(str_replace(['#', '*', '`'], '', $header));
+                    $prepHtml .= '<h6 class="mt-3 mb-2 fw-bold text-info border-bottom pb-1">' . h($cleanHeader) . '</h6>';
+                } else {
+                    $prepHtml .= '<div class="small text-muted mb-1">' . h(trim(str_replace(['**', '`'], '', $tLine))) . '</div>';
+                }
+            }
+            $prepShareEncoded = json_encode($prepRaw);
+            ?>
             <div class="card shadow-sm border-info">
-                <div class="card-header bg-info text-white">
-                    🔪 Prep Plan (Ready)
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <span>🔪 Prep Plan</span>
+                    <button onclick="sharePrep()" class="btn btn-light btn-sm" title="Share Prep Plan">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-share" viewBox="0 0 16 16">
+                            <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.5 2.5 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5m-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3"/>
+                        </svg>
+                    </button>
                 </div>
                 <div class="card-body">
-                    <pre class="small mb-0"
-                        style="white-space: pre-wrap; font-family: inherit;"><?= h($plan['prep_plan']['content'] ?? 'Error loading content') ?></pre>
+                    <div class="small mb-0" style="font-family: inherit;">
+                        <?= $prepHtml ?>
+                    </div>
                 </div>
             </div>
+            <script>
+            function sharePrep() {
+                const shareData = { title: 'Meal Prep Plan', text: <?= $prepShareEncoded ?> };
+                if (navigator.share) {
+                    navigator.share(shareData).catch(err => console.log(err));
+                } else {
+                    navigator.clipboard.writeText(shareData.text).then(() => alert("Prep plan copied to clipboard!"));
+                }
+            }
+            // Fallback if the grocery card (which normally defines this) isn't rendered
+            if (typeof toggleGroceryItem === 'undefined') {
+                function toggleGroceryItem(event, element) {
+                    if (event.target.tagName !== 'INPUT') {
+                        const cb = element.querySelector('input[type="checkbox"]');
+                        if (cb) cb.checked = !cb.checked;
+                    }
+                    const cb = element.querySelector('input[type="checkbox"]');
+                    const textSpan = element.querySelector('.grocery-text');
+                    element.style.opacity = (cb && cb.checked) ? '0.5' : '1';
+                    if (textSpan) textSpan.style.textDecoration = (cb && cb.checked) ? 'line-through' : 'none';
+                }
+                window.toggleGroceryItem = toggleGroceryItem;
+            }
+            </script>
         <?php endif; ?>
 
         <div class="alert alert-light border">

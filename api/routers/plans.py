@@ -511,6 +511,32 @@ def update_plan(plan_id: int, request: schemas.PlanUpdateRequest, db: Session = 
     return plan
 
 @router.post("/{plan_id}/grocery", response_model=schemas.MealPlan)
+def _weekly_prompt_inputs(plan):
+    """For weekly plans: per-recipe total servings + a compact context block
+    describing the cook plan, so grocery/prep prompts scale and organize
+    correctly. Returns (servings_map, week_context) or (None, None)."""
+    ws = plan.week_structure if getattr(plan, 'plan_type', 'classic') == 'weekly' else None
+    if not ws or not ws.get('days'):
+        return None, None
+    servings_map = {}
+    for day in ws['days']:
+        for slot in day.get('slots', []):
+            rid = slot.get('recipe_id')
+            servings_map[rid] = round(servings_map.get(rid, 0) + float(slot.get('servings', 1)), 2)
+    lines = [
+        "This is a 7-day plan for one person with six daily slots "
+        "(breakfast, mid-morning shake, lunch, afternoon snack, dinner, evening snack).",
+    ]
+    cook_plan = ws.get('cook_plan') or []
+    if cook_plan:
+        lines.append("Dinners are cooked once and produce two portions - the second is the "
+                     "next day's lunch. Cook events:")
+        for c in cook_plan:
+            lines.append(f"- {c['cook_on']}: {c['name']} ({c['portions']:g} portions total; "
+                         f"covers {' + '.join(c['covers'])})")
+    return servings_map, "\n".join(lines)
+
+
 def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depends(get_db)): # request might be empty dict or null
     """Generate grocery list for plan."""
     from api.services import ai_service
@@ -557,13 +583,17 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
                         recipe_ings.append({"ingredient_text": ing})
                         
         r_dict = {
+            "id": r.id,
             "name": r.name,
             "serves": r.serves,
             "ingredients": recipe_ings
         }
         recipe_dicts.append(r_dict)
-        
-    result_text = ai_service.generate_grocery_list(recipe_dicts, servings=plan.target_servings)
+
+    servings_map, week_context = _weekly_prompt_inputs(plan)
+    result_text = ai_service.generate_grocery_list(
+        recipe_dicts, servings=plan.target_servings,
+        servings_map=servings_map, week_context=week_context)
     
     # Update plan
     # We store it as a simple dict wrapper to match JSON column type
@@ -619,14 +649,18 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
                         base_instructions.extend(sub["instructions"])
                         
         r_dict = {
+            "id": r.id,
             "name": r.name,
             "serves": r.serves,
             "ingredients": recipe_ings,
             "instructions": base_instructions
         }
         recipe_dicts.append(r_dict)
-        
-    result_text = ai_service.generate_prep_plan(recipe_dicts, servings=plan.target_servings)
+
+    servings_map, week_context = _weekly_prompt_inputs(plan)
+    result_text = ai_service.generate_prep_plan(
+        recipe_dicts, servings=plan.target_servings,
+        servings_map=servings_map, week_context=week_context)
     
     plan.prep_plan = {"content": result_text}
     db.commit()

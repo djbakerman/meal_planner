@@ -65,24 +65,34 @@ def scale_quantity(text: str, ratio: float) -> str:
         # Fallback if anything goes wrong, return original
         return text
 
-def format_recipes_for_ai(recipes: List[dict], target_servings: int = None, include_instructions: bool = False) -> str:
-    """Format recipes for the AI prompt, including explicit scaling factors."""
+def format_recipes_for_ai(recipes: List[dict], target_servings: int = None,
+                          include_instructions: bool = False,
+                          servings_map: dict = None) -> str:
+    """Format recipes for the AI prompt, including explicit scaling factors.
+
+    servings_map: optional {recipe_id: total_servings_needed} override, used by
+    weekly plans where each recipe is eaten a different number of times.
+    """
     formatted = []
-    
+
     for i, recipe in enumerate(recipes, 1):
         name = recipe.get("name", "Unknown")
         servings_str = recipe.get("serves", recipe.get("servings", "unknown"))
-        
+
         # Calculate Ratio
         ratio = 1.0
         scaling_note = ""
-        
-        if target_servings:
+
+        effective_target = target_servings
+        if servings_map is not None and recipe.get("id") in servings_map:
+            effective_target = servings_map[recipe.get("id")]
+
+        if effective_target:
             original_val = parse_servings_str(servings_str)
             if original_val > 0:
-                ratio = round(target_servings / original_val, 2)
+                ratio = round(effective_target / original_val, 2)
                 if ratio != 1.0:
-                    scaling_note = f" [Scaled from {int(original_val)} servings]"
+                    scaling_note = f" [Scaled from {int(original_val)} servings to {effective_target:g}]"
         
         # DB 'ingredients' are list of objects with 'ingredient_text'
         ingredients = recipe.get("ingredients", [])
@@ -143,19 +153,23 @@ Ingredients:
 
     return "\n".join(formatted)
 
-def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = None) -> str:
+def generate_grocery_list(recipes: List[dict], servings: int = 4, model: str = None,
+                          servings_map: dict = None, week_context: str = None) -> str:
     """
     Generate a consolidated grocery list using AI.
     """
     # Recipes are now pre-scaled by format_recipes_for_ai
-    recipes_text = format_recipes_for_ai(recipes, target_servings=servings)
-    
+    recipes_text = format_recipes_for_ai(recipes, target_servings=servings,
+                                         servings_map=servings_map)
+
+    context_block = f"\nPLAN CONTEXT:\n{week_context}\n" if week_context else ""
+
     prompt = f"""I'm making these {len(recipes)} recipes for my meal plan. Please create a CONSOLIDATED grocery shopping list.
-    
+
     Target Servings for the Plan: {servings} people.
-    
-    NOTE: The ingredients listed below have ALREADY been scaled to the target servings. 
-    You do NOT need to do any math scaling. 
+    {context_block}
+    NOTE: The ingredients listed below have ALREADY been scaled to the servings needed.
+    You do NOT need to do any math scaling.
     Your job is to CONSOLIDATE duplicates.
 
 IMPORTANT: Combine similar ingredients intelligently. For example:
@@ -175,106 +189,88 @@ Please provide:
    - 🔴 NO DECIMALS: "0.33 cup" -> "⅓ cup", "0.04 tsp" -> "tiny pinch".
    - 🟢 ROUND UP/SMOOTH: "0.80 onions" -> "1 onion", "0.34 limes" -> "½ lime".
 
-4. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
+4. BUY REAL PACKAGES: round every quantity UP to the smallest package a store actually
+   sells, and never list an amount below a purchasable unit.
+   - 🔴 BAD: "Scallops - 1.4 oz", "Sirloin - 1.5 oz", "Barramundi - 0.06 lb"
+   - 🟢 GOOD: "Scallops - ½ lb (smallest counter order; freeze the rest)"
+   - When rounding up creates meaningful leftover, add a short "(leftover: ~X, freezes well)" note.
+
+5. Skip common pantry staples that most people have (salt, pepper, basic oil) unless large amounts needed
+
+6. If an ingredient's total across the whole week is still a trivial amount (under a teaspoon),
+   fold it into a single "check the spice rack" line at the end instead of the shopping sections.
 
 Format the list clearly with sections and checkboxes (□)."""
-    
+
     # Use default model from config if not specified
     response = llm.query_llm(prompt, model=model)
     return response
 
-def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None) -> str:
+def generate_prep_plan(recipes: List[dict], servings: int = 4, model: str = None,
+                       servings_map: dict = None, week_context: str = None) -> str:
     """
     Generate a meal prep plan using AI.
     """
-    # Recipies pre-scaled
-    recipes_text = format_recipes_for_ai(recipes, target_servings=servings, include_instructions=True)
-    
-    prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want to do ALL the prep work in one session so that during the week I just assemble and cook.
-    
-    Target Servings: {servings} people.
-    NOTE: Ingredients below are ALREADY scaled to this target.
+    # Recipes pre-scaled
+    recipes_text = format_recipes_for_ai(recipes, target_servings=servings,
+                                         include_instructions=True,
+                                         servings_map=servings_map)
 
+    context_block = f"\nPLAN CONTEXT (use this to organize the week):\n{week_context}\n" if week_context else ""
+
+    prompt = f"""I'm meal prepping these {len(recipes)} recipes for the week. I want ONE efficient Sunday batch session, then minimal day-of work.
+
+    Target Servings: {servings} people.
+    NOTE: Ingredients below are ALREADY scaled to the servings needed.
+    {context_block}
 Here are the recipes:
 {recipes_text}
 
-Please create a CONSOLIDATED MEAL PREP PLAN that batches similar prep tasks together. 
+Please create a MEAL PREP PLAN split into a SUNDAY BATCH SESSION and short DAY-OF notes.
 
 IMPORTANT PRINCIPLES:
 1. COMBINE similar prep tasks across recipes:
    - If 2 recipes need ½ chopped onion each, say "Chop 1 onion, store in container"
    - If 3 recipes need minced garlic, say "Mince 6 cloves garlic total, store together"
-   
-2. Group prep tasks by TYPE:
-   - All chopping/dicing together
-   - All sauce/marinade making together  
-   - All protein prep (marinating, rubbing, portioning) together
-   - All measuring of dry spices together
 
-3. Note STORAGE instructions:
-   - What goes in the fridge vs freezer
-   - How long each prep will keep
-   - Which preps should stay separate vs can be combined
+2. BE CONCISE: one line per task. No step-by-step cooking lessons - I can read
+   the recipe when cooking. The prep plan is a checklist, not a cookbook.
 
-4. Note TIME-SENSITIVE items:
-   - Things that should be prepped day-of (like avocado)
-   - Marinades that need X hours
-   - Anything that doesn't store well
+3. If the plan context shows dinners that roll into next-day lunches, treat each
+   as ONE cook event producing two portions - remind me to box the lunch portion
+   before serving dinner.
 
-5. Create a PREP ORDER that's efficient:
-   - Start with longest marinating items
-   - Group by cutting board (veggies first, then meat)
-   - End with items that are quick or need to stay fresh
+4. Note STORAGE (fridge/freezer, keeps X days) inline, in parentheses.
 
-6. FORMAT AS A CHECKLIST:
-   - Use checkboxes (□) for all actionable tasks so I can check them off as I go.
+5. Note TIME-SENSITIVE items (marinades needing hours; avocado and pear day-of only).
 
-FORMAT:
-📋 MEAL PREP SESSION PLAN
+FORMAT (exactly this structure):
+📋 MEAL PREP PLAN
 
-⏱️ ESTIMATED TOTAL PREP TIME: X minutes
+⏱️ SUNDAY BATCH: about X minutes total
 
-🥩 PROTEINS (do these first for marinating time)
-- □ Task 1 (for Recipe X, Y)
-- □ Task 2...
+🥩 PROTEINS & MARINADES (Sunday)
+- □ One-line task (Recipe names) (storage note)
 
-🔪 CHOPPING & DICING  
-- □ Onions: chop X total (for Recipe A, B, C) - store in airtight container, fridge 5 days
-- □ Garlic: mince X cloves total...
-- etc.
+🔪 CHOP & PORTION (Sunday)
+- □ One-line task (Recipe names) (storage note)
 
-🥣 SAUCES, MARINADES & SPICE MIXES
-- □ Make X sauce (for Recipe Y) - store in jar, fridge 1 week
-- □ Mix spice rub for... 
-- etc.
+🥣 SAUCES & MIXES (Sunday)
+- □ One-line task (Recipe names) (storage note)
 
-📦 STORAGE CONTAINERS NEEDED
-- □ X small containers for...
-- □ X medium containers for...
+🗓️ DAY-OF (5-15 minutes each day)
+- □ Monday: cook X for dinner (double portion - box half for Tuesday lunch); assemble Y
+- □ Tuesday: ...one line per day...
 
-⚠️ DAY-OF PREP (don't do ahead)
-- □ Items that should wait...
-
-🗓️ SUGGESTED COOK ORDER FOR THE WEEK
-- Day 1: Recipe X (needs longest marinating)
-- Day 2: Recipe Y...
+⚠️ DON'T PREP AHEAD
+- □ Item - reason (three words max)
 
 FORMATTING RULES:
-1. **NO DECIMALS**: Convert all decimals to standard fractions.
-   - 0.33 or 0.34 → "⅓"
-   - 0.66 or 0.67 → "⅔"
-   - 0.25 → "¼"
-   - 0.125 or 0.13 → "⅛"
-   - 0.16 or 0.17 → "⅙" or "roughly ⅙"
-   - 0.04 → "tiny pinch"
-
-2. **NO MATH**: Do NOT show your calculations in the output.
-   - 🔴 BAD: "0.34 lbs (0.17x 2 lbs)"
-   - 🟢 GOOD: "⅓ lb"
-   
-3. **ROUND SMARTLY**:
-   - "0.34 onions" -> "½ onion" (nobody buys 0.34 onions)
-   - "0.80 limes" -> "1 lime"
+1. **NO DECIMALS**: 0.33 -> "⅓", 0.25 -> "¼", 0.04 -> "tiny pinch".
+2. **NO MATH shown**: "⅓ lb", never "0.34 lbs (0.17x 2 lbs)".
+3. **ROUND SMARTLY**: "0.34 onions" -> "½ onion", "0.80 limes" -> "1 lime".
+4. Keep the whole plan under 60 lines. Shakes and no-cook snacks need no prep
+   lines unless something must be portioned ahead.
 """
 
     return llm.query_llm(prompt, model=model)

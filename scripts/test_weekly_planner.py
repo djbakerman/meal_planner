@@ -90,6 +90,7 @@ def show_week(week):
 
 def check_week(week, label):
     problems = []
+    clean_steps = {0.5, 1.0, 1.5, 2.0}
     for day in week["days"]:
         t = day["totals"]
         goal = day["target_calories"]
@@ -100,6 +101,32 @@ def check_week(week, label):
         if t["protein"] < week["targets"]["protein"] - 25:
             problems.append(f"{label} {day['day']}: protein {t['protein']} g "
                             f"(floor {week['targets']['protein']} g)")
+        for s in day["slots"]:
+            if s["servings"] not in clean_steps:
+                problems.append(f"{label} {day['day']} {s['slot']}: messy multiplier x{s['servings']}")
+
+    # Protein overshoot guard: the week should not average wildly past target
+    if week["week_average"]["protein"] > week["targets"]["protein"] + 60:
+        problems.append(f"{label}: week avg protein {week['week_average']['protein']} g "
+                        f"is far past target {week['targets']['protein']} g")
+
+    if week["mode"] != "simple":
+        # Cooking budget: balanced mode should use a human number of recipes
+        distinct = week.get("distinct_recipes", 99)
+        if not (6 <= distinct <= 16):
+            problems.append(f"{label}: {distinct} distinct recipes (cooking budget expects <= 16)")
+        # Dinner must roll into next-day lunch
+        for i in range(1, len(week["days"])):
+            dinner = next((s for s in week["days"][i - 1]["slots"] if s["slot"] == "Dinner"), None)
+            lunch = next((s for s in week["days"][i]["slots"] if s["slot"] == "Lunch"), None)
+            if dinner and lunch and dinner["recipe_id"] != lunch["recipe_id"]:
+                problems.append(f"{label}: {week['days'][i]['day']} lunch is not "
+                                f"{week['days'][i-1]['day']}'s dinner")
+        # Rest days drop the evening snack
+        for day in week["days"]:
+            has_evening = any(s["slot"] == "Evening Snack" for s in day["slots"])
+            if not day["training_day"] and has_evening:
+                problems.append(f"{label} {day['day']}: rest day still has an evening snack")
     return problems
 
 
