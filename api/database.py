@@ -23,7 +23,11 @@ if not DATABASE_URL:
          DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
 
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
-print(f"DEBUG: database.py using URL: {SQLALCHEMY_DATABASE_URL}")
+
+# Never print credentials: mask the password portion of the URL in logs.
+import re as _re
+_masked_url = _re.sub(r'(://[^:/@]+:)[^@]+(@)', r'\1****\2', SQLALCHEMY_DATABASE_URL)
+print(f"DEBUG: database.py using URL: {_masked_url}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

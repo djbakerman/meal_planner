@@ -8,6 +8,20 @@ from pathlib import Path
 # Add parent directory to path to import api
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Load environment files BEFORE importing api.database so scripts use the
+# same DB credentials as the running API instead of the hard-coded
+# mealplanner:mealplanner defaults. Checks api/.env (dev layout, like
+# api/main.py) and the repo-root .env (production layout). Existing shell
+# environment variables always win (load_dotenv does not override them).
+try:
+    from dotenv import load_dotenv
+    _root = Path(__file__).parent.parent
+    for _env_file in (_root / "api" / ".env", _root / ".env"):
+        if _env_file.exists():
+            load_dotenv(_env_file)
+except ImportError:
+    pass  # python-dotenv not installed; rely on shell environment
+
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

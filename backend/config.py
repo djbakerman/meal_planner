@@ -8,15 +8,23 @@ CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "https://api.anthropic.com/v1/
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Model Configuration
+# Note: llm.is_claude_model() also accepts any string starting with "claude-",
+# so these lists are informational rather than gates.
 CLAUDE_MODELS = [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5",
+    "claude-opus-4-8",
     "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514", 
+    "claude-opus-4-20250514",
     "claude-3-5-sonnet-20241022",
     "claude-3-opus-20240229",
     "claude-3-haiku-20240307"
 ]
 
 CLAUDE_VISION_MODELS = [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5",
+    "claude-opus-4-8",
     "claude-sonnet-4-20250514",
     "claude-opus-4-20250514",
     "claude-3-5-sonnet-20241022",
@@ -26,7 +34,9 @@ CLAUDE_VISION_MODELS = [
 ]
 
 DEFAULT_OLLAMA_MODEL = "llava"
-DEFAULT_MODEL = "claude-3-haiku-20240307"
+# Overridable via environment so the next model retirement is an .env change,
+# not a code deploy. (claude-3-haiku-20240307 was retired and now returns 404.)
+DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "claude-haiku-4-5-20251001")
 
 # Paths
 DEFAULT_STATE_FILE = os.path.expanduser("~/.meal_plan_state.json")
