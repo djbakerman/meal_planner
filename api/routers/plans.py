@@ -510,7 +510,6 @@ def update_plan(plan_id: int, request: schemas.PlanUpdateRequest, db: Session = 
     db.refresh(plan)
     return plan
 
-@router.post("/{plan_id}/grocery", response_model=schemas.MealPlan)
 def _weekly_prompt_inputs(plan):
     """For weekly plans: per-recipe total servings + a compact context block
     describing the cook plan, so grocery/prep prompts scale and organize
@@ -537,6 +536,7 @@ def _weekly_prompt_inputs(plan):
     return servings_map, "\n".join(lines)
 
 
+@router.post("/{plan_id}/grocery", response_model=schemas.MealPlan)
 def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depends(get_db)): # request might be empty dict or null
     """Generate grocery list for plan."""
     from api.services import ai_service

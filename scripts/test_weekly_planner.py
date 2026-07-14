@@ -161,6 +161,7 @@ def main():
         headers["X-Internal-Secret"] = os.getenv("INTERNAL_API_KEY")
 
     all_problems = []
+    last_plan_id = None
     for week_number, mode in [(1, "variety"), (5, "variety"), (1, "simple")]:
         resp = client.post("/api/plans/generate-weekly", headers=headers, json={
             "week_number": week_number,
@@ -170,9 +171,32 @@ def main():
         assert resp.status_code == 200, f"API error {resp.status_code}: {resp.text[:500]}"
         plan = resp.json()
         assert plan["plan_type"] == "weekly"
+        last_plan_id = plan["id"]
         week = plan["week_structure"]
         show_week(week)
         all_problems += check_week(week, f"[wk{week_number}/{mode}]")
+
+    # --- Route-wiring check: grocery and prep endpoints must exist and store
+    #     content. (A decorator once got separated from its endpoint; never again.)
+    from backend import llm as llm_module
+    original_query = llm_module.query_llm
+    llm_module.query_llm = lambda *a, **k: "PRODUCE\n□ stub item 1\n□ stub item 2"
+    try:
+        for action in ("grocery", "prep"):
+            resp = client.post(f"/api/plans/{last_plan_id}/{action}",
+                               headers=headers, json={"force": True})
+            if resp.status_code != 200:
+                all_problems.append(f"[routes] POST /{action} returned {resp.status_code}: "
+                                    f"{resp.text[:200]}")
+                continue
+            body = resp.json()
+            key = "grocery_list" if action == "grocery" else "prep_plan"
+            if not (body.get(key) or {}).get("content"):
+                all_problems.append(f"[routes] /{action} ran but stored no content")
+            else:
+                print(f"Route check OK: POST /api/plans/{{id}}/{action} stored content")
+    finally:
+        llm_module.query_llm = original_query
 
     print(f"\n{'=' * 78}")
     if all_problems:
