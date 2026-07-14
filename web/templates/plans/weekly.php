@@ -155,18 +155,35 @@ function showWeeklyBuildOverlay(btn) {
     document.body.appendChild(overlay);
 
     let step = 0, elapsed = 0, progress = 3;
-    setInterval(() => {
+    const tick = setInterval(() => {
         elapsed += 1;
         document.getElementById('wkElapsed').textContent = elapsed;
         progress += Math.max(0.15, (92 - progress) * 0.018);
         document.getElementById('wkProgressBar').style.width = Math.min(92, progress) + '%';
     }, 1000);
-    setInterval(() => {
+    const rotate = setInterval(() => {
         step += 1;
         const el = document.getElementById('wkStageMsg');
         el.style.opacity = 0;
         setTimeout(() => { el.textContent = steps[step % steps.length]; el.style.opacity = 1; }, 300);
     }, 9000);
-    return true;
+
+    // Submit via fetch: native form navigation suppresses repaints and froze
+    // the overlay. The page stays alive; redirect when the build completes.
+    const form = btn.closest('form');
+    fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+        .then(res => {
+            clearInterval(tick); clearInterval(rotate);
+            const bar = document.getElementById('wkProgressBar');
+            const msg = document.getElementById('wkStageMsg');
+            if (bar) { bar.style.transition = 'width .4s ease'; bar.style.width = '100%'; }
+            if (msg) msg.textContent = 'Week built!';
+            setTimeout(() => { window.location.href = res.url || window.location.href; }, 450);
+        })
+        .catch(() => {
+            clearInterval(tick); clearInterval(rotate);
+            setTimeout(() => { window.location.reload(); }, 450);
+        });
+    return false; // fetch handles submission; never navigate natively
 }
 </script>

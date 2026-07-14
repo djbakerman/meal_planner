@@ -63,13 +63,13 @@
         <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
             <!-- These buttons will be activated in Module 5 -->
             <form action="<?= url('/plans/' . $plan['id'] . '/grocery') ?>" method="POST"
-                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'grocery');">
+                onsubmit="return startGeneration(this, 'grocery');">
                 <button type="submit" class="btn btn-success">
                     🛒 Grocery List
                 </button>
             </form>
             <form action="<?= url('/plans/' . $plan['id'] . '/prep') ?>" method="POST"
-                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'prep');">
+                onsubmit="return startGeneration(this, 'prep');">
                 <button type="submit" class="btn btn-info text-white">
                     🔪 Prep Plan
                 </button>
@@ -475,8 +475,8 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
 
             foreach ($lines as $line) {
                 $tLine = trim($line);
-                if ($tLine === '') {
-                    continue;
+                if ($tLine === '' || preg_match('/^[-=_—–═\s]+$/u', $tLine)) {
+                    continue; // blank or separator-only line (e.g. "--")
                 } elseif (preg_match('/^(?:-\s*\[\s*\]|\[\s*\]|-|□|\*)\s*(.+)$/u', $tLine, $matches)) {
                     $cleanItem = h(trim(str_replace(['**', '__'], '', $matches[1])));
                     $rawItemsForShortcuts .= trim($matches[1]) . "\n";
@@ -557,8 +557,8 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
             $prepHtml = "";
             foreach ($prepLines as $line) {
                 $tLine = trim($line);
-                if ($tLine === '' || preg_match('/^[-=_]{3,}$/', $tLine)) {
-                    continue;
+                if ($tLine === '' || preg_match('/^[-=_—–═\s]+$/u', $tLine)) {
+                    continue; // blank or separator-only line
                 } elseif (preg_match('/^(?:-\s*)?(?:\[\s*\]|□)\s*(.+)$/u', $tLine, $m)) {
                     $task = h(trim(str_replace(['**', '__'], '', $m[1])));
                     $prepHtml .= '<label class="grocery-item d-flex align-items-start mb-2 rounded" style="cursor:pointer; transition: all 0.2s;" onclick="toggleGroceryItem(event, this)"><input type="checkbox" class="form-check-input me-2 mt-1 flex-shrink-0"> <span class="grocery-text">' . $task . '</span></label>';
@@ -739,14 +739,14 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
         document.body.appendChild(overlay);
 
         let step = 0, elapsed = 0, progress = 3;
-        setInterval(() => {
+        const tick = setInterval(() => {
             elapsed += 1;
             document.getElementById('genElapsed').textContent = elapsed;
             // Ease toward 92%: fast early, slow later, never claims done
             progress += Math.max(0.15, (92 - progress) * 0.022);
             document.getElementById('genProgressBar').style.width = Math.min(92, progress) + '%';
         }, 1000);
-        setInterval(() => {
+        const rotate = setInterval(() => {
             step += 1;
             const el = document.getElementById('genStageMsg');
             el.style.opacity = 0;
@@ -755,17 +755,38 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                 el.style.opacity = 1;
             }, 300);
         }, 9000);
+
+        return {
+            finish() {
+                clearInterval(tick);
+                clearInterval(rotate);
+                const bar = document.getElementById('genProgressBar');
+                const msg = document.getElementById('genStageMsg');
+                if (bar) { bar.style.transition = 'width .4s ease'; bar.style.width = '100%'; }
+                if (msg) msg.textContent = 'Done!';
+            }
+        };
     }
 
-    function handleGeneratorSubmit(btn, kind) {
-        // Prevent double clicks
+    // Submit via fetch instead of native navigation: browsers suppress repaints
+    // on a page that is navigating away, which froze the overlay at 0s. With
+    // fetch the page stays alive, the timers animate, and we redirect on completion.
+    function startGeneration(form, kind) {
+        const btn = form.querySelector('button[type=submit], button');
         if (btn.disabled) return false;
-
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Working…';
-        showGeneratorOverlay(kind);
 
-        // Allow form submission to proceed (page reloads when done)
-        return true;
+        const overlay = showGeneratorOverlay(kind);
+        fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+            .then(res => {
+                overlay.finish();
+                setTimeout(() => { window.location.href = res.url || window.location.href; }, 450);
+            })
+            .catch(err => {
+                overlay.finish();
+                setTimeout(() => { window.location.reload(); }, 450);
+            });
+        return false; // never navigate natively
     }
 </script>
