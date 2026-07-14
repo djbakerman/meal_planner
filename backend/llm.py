@@ -84,8 +84,9 @@ def query_claude(prompt: str, model: str, api_key: str = None,
     payload = {
         "model": model,
         # Roomier ceiling: models with adaptive thinking (Sonnet 5+) spend part
-        # of the output budget on thinking blocks before the text.
-        "max_tokens": 8192,
+        # of the output budget on thinking blocks before the text - at high
+        # effort on large prompts, thinking alone can exceed 8k tokens.
+        "max_tokens": 16384,
         "messages": [
             {"role": "user", "content": content}
         ]
