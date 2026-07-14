@@ -510,6 +510,33 @@ def update_plan(plan_id: int, request: schemas.PlanUpdateRequest, db: Session = 
     db.refresh(plan)
     return plan
 
+def _resolve_component_row(db, parent_recipe, sub_name: str):
+    """Find a component stored as its own recipe row (dish_role='sub_recipe')
+    referenced by name from parent_recipe.sub_recipes. Mirrors the matching
+    logic of get_with_sub_recipes but returns a single row for inlining."""
+    if not sub_name or not isinstance(sub_name, str):
+        return None
+    q = db.query(orm.Recipe).filter(
+        orm.Recipe.name.ilike(sub_name),
+        orm.Recipe.dish_role == 'sub_recipe'
+    )
+    if parent_recipe.catalog_id:
+        found = q.filter(orm.Recipe.catalog_id == parent_recipe.catalog_id).first()
+        if found:
+            return found
+    return q.first()
+
+
+def _weekly_serves(r):
+    """Weekly scaling must match the macro math: a recipe without a parseable
+    serves value was treated as ONE serving by the nutrition estimator, so the
+    grocery/prep scaler must assume the same (the classic path defaults to 4)."""
+    import re as _re
+    if r.serves and _re.search(r'\d', str(r.serves)):
+        return r.serves
+    return "1"
+
+
 def _weekly_prompt_inputs(plan):
     """For weekly plans: per-recipe total servings + a compact context block
     describing the cook plan, so grocery/prep prompts scale and organize
@@ -524,7 +551,7 @@ def _weekly_prompt_inputs(plan):
             servings_map[rid] = round(servings_map.get(rid, 0) + float(slot.get('servings', 1)), 2)
     lines = [
         "This is a 7-day plan for one person with six daily slots "
-        "(breakfast, mid-morning shake, lunch, afternoon snack, dinner, evening snack).",
+        "(breakfast, mid-morning, lunch, afternoon snack, dinner, evening snack).",
     ]
     cook_plan = ws.get('cook_plan') or []
     if cook_plan:
@@ -559,14 +586,16 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
     # Get full recipe objects
     # Access via relationship directly
     recipes = [link.recipe for link in plan.plan_recipes]
-    
+
+    is_weekly = getattr(plan, 'plan_type', 'classic') == 'weekly'
+
     # Convert SQLAlchemy objects to dicts for the service
-    # The service expects dicts or objects with attributes. 
+    # The service expects dicts or objects with attributes.
     # It handles both, but let's pass objects to be safe with our new logic.
     recipe_dicts = []
     for r in recipes:
         recipe_ings = [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
-        
+
         # Add inline sub-recipe ingredients if they exist
         if r.sub_recipes:
             import json
@@ -576,16 +605,25 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
                     subs = json.loads(subs)
                 except json.JSONDecodeError:
                     subs = []
-            
+
             for sub in subs:
-                if isinstance(sub, dict) and "ingredients" in sub:
+                if isinstance(sub, dict) and sub.get("ingredients"):
                     for ing in sub["ingredients"]:
                         recipe_ings.append({"ingredient_text": ing})
-                        
+                elif is_weekly:
+                    # Name-only component reference: classic plans resolve these
+                    # as separate plan recipes at generation time; weekly plans
+                    # inline the component row's ingredients here instead.
+                    sub_name = sub.get("name") if isinstance(sub, dict) else sub
+                    row = _resolve_component_row(db, r, sub_name)
+                    if row:
+                        for i in row.ingredients:
+                            recipe_ings.append({"ingredient_text": i.ingredient_text})
+
         r_dict = {
             "id": r.id,
             "name": r.name,
-            "serves": r.serves,
+            "serves": _weekly_serves(r) if is_weekly else r.serves,
             "ingredients": recipe_ings
         }
         recipe_dicts.append(r_dict)
@@ -623,11 +661,14 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
         return plan
         
     recipes = [link.recipe for link in plan.plan_recipes]
+
+    is_weekly = getattr(plan, 'plan_type', 'classic') == 'weekly'
+
     recipe_dicts = []
     for r in recipes:
         recipe_ings = [{"ingredient_text": i.ingredient_text} for i in r.ingredients]
         base_instructions = list(r.instructions) if r.instructions else []
-        
+
         # Add inline sub-recipe ingredients and instructions if they exist
         if r.sub_recipes:
             import json
@@ -639,19 +680,29 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
                     subs = []
 
             for sub in subs:
-                if isinstance(sub, dict):
-                    if "ingredients" in sub:
+                if isinstance(sub, dict) and (sub.get("ingredients") or sub.get("instructions")):
+                    if sub.get("ingredients"):
                         for ing in sub["ingredients"]:
                             recipe_ings.append({"ingredient_text": ing})
-                    if "instructions" in sub and sub["instructions"]:
+                    if sub.get("instructions"):
                         sub_name = sub.get("name", "Sub-recipe")
                         base_instructions.append(f"--- {sub_name} ---")
                         base_instructions.extend(sub["instructions"])
-                        
+                elif is_weekly:
+                    # Name-only component reference: inline the component row
+                    sub_name = sub.get("name") if isinstance(sub, dict) else sub
+                    row = _resolve_component_row(db, r, sub_name)
+                    if row:
+                        for i in row.ingredients:
+                            recipe_ings.append({"ingredient_text": i.ingredient_text})
+                        if row.instructions:
+                            base_instructions.append(f"--- {row.name} ---")
+                            base_instructions.extend(list(row.instructions))
+
         r_dict = {
             "id": r.id,
             "name": r.name,
-            "serves": r.serves,
+            "serves": _weekly_serves(r) if is_weekly else r.serves,
             "ingredients": recipe_ings,
             "instructions": base_instructions
         }

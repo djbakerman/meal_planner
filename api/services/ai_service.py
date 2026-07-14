@@ -200,6 +200,8 @@ Please provide:
 6. If an ingredient's total across the whole week is still a trivial amount (under a teaspoon),
    fold it into a single "check the spice rack" line at the end instead of the shopping sections.
 
+7. Do not use ** bold markers or markdown emphasis anywhere - plain text with checkboxes only.
+
 Format the list clearly with sections and checkboxes (□)."""
 
     # Use default model from config if not specified
@@ -266,11 +268,20 @@ FORMAT (exactly this structure):
 - □ Item - reason (three words max)
 
 FORMATTING RULES:
-1. **NO DECIMALS**: 0.33 -> "⅓", 0.25 -> "¼", 0.04 -> "tiny pinch".
-2. **NO MATH shown**: "⅓ lb", never "0.34 lbs (0.17x 2 lbs)".
-3. **ROUND SMARTLY**: "0.34 onions" -> "½ onion", "0.80 limes" -> "1 lime".
+1. NO DECIMALS: 0.33 -> "⅓", 0.25 -> "¼", 0.04 -> "tiny pinch".
+2. NO MATH shown: "⅓ lb", never "0.34 lbs (0.17x 2 lbs)".
+3. ROUND SMARTLY: "0.34 onions" -> "½ onion", "0.80 limes" -> "1 lime".
 4. Keep the whole plan under 60 lines. Shakes and no-cook snacks need no prep
    lines unless something must be portioned ahead.
+5. Refer to recipes by NAME only - never "Recipe 4" or numbers. The reader
+   sees names, not your internal ordering.
+6. STORAGE MUST COVER USAGE: if an item is eaten on days beyond its safe
+   storage window (e.g. smoothie base keeps 2 days but is used Monday and
+   Thursday), schedule a second mini-batch mid-week instead of one big batch.
+7. QUANTITY SANITY CHECK: garlic is measured in cloves, never cups; dried
+   spices in teaspoons. If a consolidated amount looks absurd for home
+   cooking, state the sensible amount instead.
+8. Do not use ** bold markers or markdown emphasis anywhere.
 """
 
     return llm.query_llm(prompt, model=model)
