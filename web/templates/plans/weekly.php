@@ -13,7 +13,8 @@
                     Build-phase target. Protein floor is enforced first, calories second, variety third.
                 </div>
 
-                <form action="<?= url('/plans/weekly') ?>" method="POST">
+                <form action="<?= url('/plans/weekly') ?>" method="POST"
+                    onsubmit="return showWeeklyBuildOverlay(this.querySelector('button[type=submit]'));">
 
                     <div class="row mb-4">
                         <div class="col-md-6">
@@ -118,3 +119,54 @@
         </div>
     </div>
 </div>
+
+<script>
+// Staged progress overlay: the build is one long backend call (longer on the
+// first run, when missing macros get AI-estimated), so the bar eases toward
+// 92% while the stages describe the actual pipeline.
+function showWeeklyBuildOverlay(btn) {
+    if (btn.disabled) return false;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Building…';
+
+    const steps = [
+        'Loading your recipe catalogs…',
+        'Filling in any missing macros…',
+        'Balancing the cooking budget…',
+        'Rolling dinners into next-day lunches…',
+        'Fitting servings to the calorie ramp…',
+        'Checking the protein floor…',
+        'Setting the table…'
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.72);z-index:2000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+        <div class="card shadow-lg border-0" style="max-width:420px;width:90%;">
+            <div class="card-body p-4 text-center">
+                <div class="spinner-border text-dark mb-3" role="status" aria-hidden="true"></div>
+                <h5 class="mb-1">📅 Building your week</h5>
+                <div id="wkStageMsg" class="text-muted small mb-3" style="min-height:1.5em;transition:opacity .3s;">${steps[0]}</div>
+                <div class="progress mb-2" style="height:6px;">
+                    <div id="wkProgressBar" class="progress-bar bg-dark" style="width:3%;transition:width 1s linear;"></div>
+                </div>
+                <div class="small text-muted"><span id="wkElapsed">0</span>s elapsed &middot; first run can take a few minutes</div>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    let step = 0, elapsed = 0, progress = 3;
+    setInterval(() => {
+        elapsed += 1;
+        document.getElementById('wkElapsed').textContent = elapsed;
+        progress += Math.max(0.15, (92 - progress) * 0.018);
+        document.getElementById('wkProgressBar').style.width = Math.min(92, progress) + '%';
+    }, 1000);
+    setInterval(() => {
+        step += 1;
+        const el = document.getElementById('wkStageMsg');
+        el.style.opacity = 0;
+        setTimeout(() => { el.textContent = steps[step % steps.length]; el.style.opacity = 1; }, 300);
+    }, 9000);
+    return true;
+}
+</script>

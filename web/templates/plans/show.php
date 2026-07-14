@@ -63,13 +63,13 @@
         <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
             <!-- These buttons will be activated in Module 5 -->
             <form action="<?= url('/plans/' . $plan['id'] . '/grocery') ?>" method="POST"
-                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'Generating List...');">
+                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'grocery');">
                 <button type="submit" class="btn btn-success">
                     🛒 Grocery List
                 </button>
             </form>
             <form action="<?= url('/plans/' . $plan['id'] . '/prep') ?>" method="POST"
-                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'Writing Plan...');">
+                onsubmit="handleGeneratorSubmit(this.querySelector('button'), 'prep');">
                 <button type="submit" class="btn btn-info text-white">
                     🔪 Prep Plan
                 </button>
@@ -688,18 +688,84 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
     }
 
 
-    function handleGeneratorSubmit(btn, loadingText) {
+    // Staged progress overlay for long AI generations. The backend makes one
+    // long model call (60-120s), so there is no true percentage - the bar
+    // eases toward 92% and the staged messages describe the work honestly.
+    const GENERATOR_STAGES = {
+        grocery: {
+            title: '🛒 Building your grocery list',
+            steps: [
+                "Reading all the week's recipes…",
+                'Consolidating duplicate ingredients…',
+                'Converting to store package sizes…',
+                'Rounding to real-world amounts…',
+                'Noting what freezes well…',
+                'Making the list…',
+                'Checking it twice…'
+            ]
+        },
+        prep: {
+            title: '🔪 Writing your prep plan',
+            steps: [
+                "Reading the week's eating schedule…",
+                'Batching the Sunday session…',
+                'Sequencing the cook order…',
+                'Splitting fridge versus freezer…',
+                'Timing marinades and bakes…',
+                'Writing the day-of notes…',
+                'Wiping down the counters…'
+            ]
+        }
+    };
+
+    function showGeneratorOverlay(kind) {
+        const cfg = GENERATOR_STAGES[kind] || GENERATOR_STAGES.grocery;
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.72);z-index:2000;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `
+            <div class="card shadow-lg border-0" style="max-width:420px;width:90%;">
+                <div class="card-body p-4 text-center">
+                    <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+                    <h5 class="mb-1">${cfg.title}</h5>
+                    <div id="genStageMsg" class="text-muted small mb-3" style="min-height:1.5em;transition:opacity .3s;">${cfg.steps[0]}</div>
+                    <div class="progress mb-2" style="height:6px;">
+                        <div id="genProgressBar" class="progress-bar bg-primary" style="width:3%;transition:width 1s linear;"></div>
+                    </div>
+                    <div class="small text-muted">
+                        <span id="genElapsed">0</span>s elapsed &middot; usually 1&ndash;2 minutes
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        let step = 0, elapsed = 0, progress = 3;
+        setInterval(() => {
+            elapsed += 1;
+            document.getElementById('genElapsed').textContent = elapsed;
+            // Ease toward 92%: fast early, slow later, never claims done
+            progress += Math.max(0.15, (92 - progress) * 0.022);
+            document.getElementById('genProgressBar').style.width = Math.min(92, progress) + '%';
+        }, 1000);
+        setInterval(() => {
+            step += 1;
+            const el = document.getElementById('genStageMsg');
+            el.style.opacity = 0;
+            setTimeout(() => {
+                el.textContent = cfg.steps[step % cfg.steps.length];
+                el.style.opacity = 1;
+            }, 300);
+        }, 9000);
+    }
+
+    function handleGeneratorSubmit(btn, kind) {
         // Prevent double clicks
         if (btn.disabled) return false;
 
-        // Save original text if needed (though page will reload)
-        const originalText = btn.innerHTML;
-
-        // Update UI
         btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${loadingText}`;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Working…';
+        showGeneratorOverlay(kind);
 
-        // Allow form submission to proceed
+        // Allow form submission to proceed (page reloads when done)
         return true;
     }
 </script>
