@@ -26,16 +26,20 @@ DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
 DEFAULT_TRAINING_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 # Grazer slot layout: (name, share of daily calories, eligible meal_types)
+# ('Mid-Morning' rather than 'Shake': overnight oats and egg bakes land there too)
 SLOTS = [
-    ('Breakfast',         0.20, ('breakfast', 'any')),
-    ('Mid-Morning Shake', 0.16, ('snack', 'breakfast', 'any')),
-    ('Lunch',             0.22, ('lunch', 'dinner', 'any')),
-    ('Afternoon Snack',   0.12, ('snack', 'any')),
-    ('Dinner',            0.22, ('dinner', 'lunch', 'any')),
-    ('Evening Snack',     0.08, ('snack', 'dessert', 'any')),
+    ('Breakfast',       0.20, ('breakfast', 'any')),
+    ('Mid-Morning',     0.16, ('snack', 'breakfast', 'any')),
+    ('Lunch',           0.22, ('lunch', 'dinner', 'any')),
+    ('Afternoon Snack', 0.12, ('snack', 'any')),
+    ('Dinner',          0.22, ('dinner', 'lunch', 'any')),
+    ('Evening Snack',   0.08, ('snack', 'dessert', 'any')),
 ]
 _SLOT_TYPES = {name: types for name, share, types in SLOTS}
 _SLOT_SHARE = {name: share for name, share, types in SLOTS}
+
+# Slots where side dishes and light items are acceptable
+SNACK_SLOTS = {'Mid-Morning', 'Afternoon Snack', 'Evening Snack'}
 
 # Clean, kitchen-real serving multipliers only
 SERVING_STEPS = [0.5, 1.0, 1.5, 2.0]
@@ -43,7 +47,7 @@ SERVING_STEPS = [0.5, 1.0, 1.5, 2.0]
 # Minimum protein (grams, at chosen multiplier) for quality-sensitive slots.
 # Keeps spritz cookies and rice pilaf out of a muscle program's snack slots.
 SLOT_PROTEIN_FLOOR = {
-    'Mid-Morning Shake': 20.0,
+    'Mid-Morning': 20.0,
     'Evening Snack': 10.0,
     'Afternoon Snack': 6.0,
 }
@@ -81,7 +85,7 @@ def _eligible(recipe_info: dict, slot_types: tuple, slot_name: str) -> bool:
     role = (recipe_info['dish_role'] or 'main').lower()
     if role == 'sub_recipe':
         return False
-    if role == 'side' and 'Snack' not in slot_name and 'Shake' not in slot_name:
+    if role == 'side' and slot_name not in SNACK_SLOTS:
         return False
     if mt == 'dessert' and slot_name != 'Evening Snack':
         return False
@@ -224,7 +228,7 @@ def _build_balanced_menu(pool: List[dict], day_kcal: float, protein_target: floa
 
     menu = {
         'breakfasts': take('Breakfast', BALANCED_BUDGET['breakfasts']),
-        'shakes': take('Mid-Morning Shake', BALANCED_BUDGET['shakes']),
+        'shakes': take('Mid-Morning', BALANCED_BUDGET['shakes']),
         'afternoon': take('Afternoon Snack', BALANCED_BUDGET['afternoon']),
         'evening': take('Evening Snack', BALANCED_BUDGET['evening']),
         'dinners': take('Dinner', BALANCED_BUDGET['dinners']),
@@ -310,7 +314,7 @@ def build_week(recipes, week_number: int = 1, mode: str = 'variety',
             else:
                 if slot_name == 'Breakfast':
                     info = _rotate(menu['breakfasts'], day_idx)
-                elif slot_name == 'Mid-Morning Shake':
+                elif slot_name == 'Mid-Morning':
                     info = _rotate(menu['shakes'], day_idx)
                 elif slot_name == 'Afternoon Snack':
                     info = _rotate(menu['afternoon'], day_idx)
@@ -338,7 +342,7 @@ def build_week(recipes, week_number: int = 1, mode: str = 'variety',
         totals = _day_totals(day_slots)
         if totals['protein'] < protein_target - 10:
             for entry in day_slots:
-                if entry['slot'] != 'Mid-Morning Shake':
+                if entry['slot'] != 'Mid-Morning':
                     continue
                 info = next((p for p in pool if p['id'] == entry['recipe_id']), None)
                 if not info:

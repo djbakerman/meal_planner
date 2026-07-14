@@ -105,11 +105,19 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                     </span>
                 <?php endif; ?>
             </div>
-            <div class="ms-auto small text-nowrap">
-                Targets:
-                <span class="badge bg-success"><?= (int) $ws['targets']['training_calories'] ?> kcal training</span>
-                <span class="badge bg-info text-dark"><?= (int) $ws['targets']['rest_calories'] ?> kcal rest</span>
-                <span class="badge bg-warning text-dark"><?= (int) $ws['targets']['protein'] ?> g protein</span>
+            <div class="ms-auto small text-nowrap d-flex align-items-center gap-2">
+                <span>
+                    Targets:
+                    <span class="badge bg-success"><?= (int) $ws['targets']['training_calories'] ?> kcal training</span>
+                    <span class="badge bg-info text-dark"><?= (int) $ws['targets']['rest_calories'] ?> kcal rest</span>
+                    <span class="badge bg-warning text-dark"><?= (int) $ws['targets']['protein'] ?> g protein</span>
+                </span>
+                <button onclick="window.print()" class="btn btn-sm btn-outline-light d-print-none" title="Print the week for the fridge">🖨</button>
+                <?php $nextWeek = min(13, (int) $ws['week_number'] + 1); ?>
+                <a href="<?= url('/plans/weekly?week=' . $nextWeek . '&mode=' . urlencode($ws['mode'] ?? 'variety')) ?>"
+                    class="btn btn-sm btn-outline-light d-print-none" title="Generate next week's plan with the same settings">
+                    ➡️ Build Week <?= $nextWeek ?>
+                </a>
             </div>
         </div>
         <div class="card-body">
@@ -121,7 +129,8 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                     $protOk = $tot['protein'] >= ($day['protein_target'] ?? 180) - 10;
                     ?>
                     <div class="col-md-6 col-xl-4">
-                        <div class="card h-100 border <?= $day['training_day'] ? 'border-success' : 'border-light' ?>">
+                        <div class="card h-100 border <?= $day['training_day'] ? 'border-success' : 'border-light' ?>"
+                            data-weekday="<?= h($day['day']) ?>">
                             <div class="card-header py-2 d-flex align-items-center">
                                 <strong><?= h($day['day']) ?></strong>
                                 <span class="badge ms-2 <?= $day['training_day'] ? 'bg-success' : 'bg-secondary' ?>">
@@ -182,6 +191,31 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
             <?php endif; ?>
         </div>
     </div>
+    <script>
+    // Highlight today's card in the week grid
+    (function () {
+        var today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        document.querySelectorAll('[data-weekday]').forEach(function (el) {
+            if (el.dataset.weekday === today) {
+                el.classList.remove('border-light');
+                el.classList.add('border-primary', 'border-2');
+                var header = el.querySelector('.card-header strong');
+                if (header) {
+                    header.insertAdjacentHTML('afterend', '<span class="badge bg-primary ms-2">Today</span>');
+                }
+            }
+        });
+    })();
+    </script>
+    <style media="print">
+        /* Fridge copy: keep the week grid, grocery list, and prep plan */
+        nav, .navbar, footer, form, .btn, .btn-group,
+        .alert-info, #renameForm, .d-print-none { display: none !important; }
+        .col-lg-8, .col-lg-4, .col-md-6, .col-xl-4 { width: 100% !important; }
+        .col-xl-4 { width: 50% !important; float: left; }
+        .card { break-inside: avoid; border: 1px solid #bbb !important; box-shadow: none !important; }
+        a { text-decoration: none !important; color: #000 !important; }
+    </style>
 <?php endif; ?>
 
 <div class="row">
@@ -333,7 +367,7 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                                                 class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
                                             <?php if (!empty($recipe['calories'])): ?>
                                                 <span class="badge bg-danger bg-opacity-10 text-danger border border-danger me-1">
-                                                    🔥 <?= h($recipe['calories']) ?>
+                                                    🔥 <?= preg_match('/(\d+)/', (string)$recipe['calories'], $kcalM) ? $kcalM[1] . ' kcal' : h($recipe['calories']) ?>
                                                 </span>
                                             <?php endif; ?>
                                             Using: <?= h($recipe['dish_role']) ?>
@@ -391,7 +425,7 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                                             class="badge bg-light text-dark border me-1"><?= ucfirst($recipe['meal_type']) ?></span>
                                         <?php if (!empty($recipe['calories'])): ?>
                                             <span class="badge bg-danger bg-opacity-10 text-danger border border-danger me-1">
-                                                🔥 <?= h($recipe['calories']) ?>
+                                                🔥 <?= preg_match('/(\d+)/', (string)$recipe['calories'], $kcalM) ? $kcalM[1] . ' kcal' : h($recipe['calories']) ?>
                                             </span>
                                         <?php endif; ?>
                                         Using: <?= h($recipe['dish_role']) ?>
@@ -432,7 +466,7 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                 if ($tLine === '') {
                     continue;
                 } elseif (preg_match('/^(?:-\s*\[\s*\]|\[\s*\]|-|□|\*)\s*(.+)$/u', $tLine, $matches)) {
-                    $cleanItem = h(trim($matches[1]));
+                    $cleanItem = h(trim(str_replace(['**', '__'], '', $matches[1])));
                     $rawItemsForShortcuts .= trim($matches[1]) . "\n";
                     $groceryHtml .= '<label class="grocery-item d-flex align-items-start mb-2 rounded" style="cursor:pointer; transition: all 0.2s;" onclick="toggleGroceryItem(event, this)"><input type="checkbox" class="form-check-input me-2 mt-1 flex-shrink-0"> <span class="grocery-text">' . $cleanItem . "</span></label>";
                 } else {
@@ -514,7 +548,7 @@ $isWeekly = (($plan['plan_type'] ?? 'classic') === 'weekly') && !empty($ws['days
                 if ($tLine === '' || preg_match('/^[-=_]{3,}$/', $tLine)) {
                     continue;
                 } elseif (preg_match('/^(?:-\s*)?(?:\[\s*\]|□)\s*(.+)$/u', $tLine, $m)) {
-                    $task = h(trim($m[1]));
+                    $task = h(trim(str_replace(['**', '__'], '', $m[1])));
                     $prepHtml .= '<label class="grocery-item d-flex align-items-start mb-2 rounded" style="cursor:pointer; transition: all 0.2s;" onclick="toggleGroceryItem(event, this)"><input type="checkbox" class="form-check-input me-2 mt-1 flex-shrink-0"> <span class="grocery-text">' . $task . '</span></label>';
                 } elseif (preg_match('/^#{1,4}\s*(.+)$/', $tLine, $m) || preg_match('/^(🥩|🔪|🥣|🗓|⚠️|📋|⏱|📦)/u', $tLine)) {
                     $header = isset($m[1]) ? $m[1] : $tLine;

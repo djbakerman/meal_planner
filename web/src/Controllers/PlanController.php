@@ -169,11 +169,15 @@ class PlanController
     public function weeklyForm(Request $request, Response $response, $args): Response
     {
         $catalogs = $this->api->get('/api/catalogs');
+        $query = $request->getQueryParams();
 
         $this->view->setLayout('layouts/main.php');
         return $this->view->render($response, 'plans/weekly.php', [
             'title' => 'Weekly Builder',
-            'catalogs' => $catalogs
+            'catalogs' => $catalogs,
+            // Prefills from the "Build Week N+1" link on an existing weekly plan
+            'preselect_week' => max(1, min(13, (int) ($query['week'] ?? 1))),
+            'preselect_mode' => ($query['mode'] ?? 'variety') === 'simple' ? 'simple' : 'variety',
         ]);
     }
 

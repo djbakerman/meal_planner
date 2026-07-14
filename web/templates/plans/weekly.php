@@ -18,12 +18,13 @@
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Program Week (1–13)</label>
+                            <?php $selWeek = $preselect_week ?? 1; ?>
                             <select class="form-select" name="week_number">
                                 <?php for ($w = 1; $w <= 13; $w++):
                                     $phase = $w <= 4 ? 'Foundation' : ($w <= 8 ? 'Build' : ($w <= 12 ? 'Define' : 'Test Week'));
                                     $kcal = $w <= 2 ? 2300 : ($w == 3 ? 2450 : ($w == 4 ? 2600 : ($w == 5 ? 2700 : 2800)));
                                     ?>
-                                    <option value="<?= $w ?>" <?= $w == 1 ? 'selected' : '' ?>>
+                                    <option value="<?= $w ?>" <?= $w == $selWeek ? 'selected' : '' ?>>
                                         Week <?= $w ?> — <?= $phase ?> (<?= $kcal ?> kcal training days)
                                     </option>
                                 <?php endfor; ?>
@@ -32,14 +33,17 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Mode</label>
+                            <?php $selMode = $preselect_mode ?? 'variety'; ?>
                             <div class="form-check card-radio mb-2">
-                                <input class="form-check-input" type="radio" name="mode" value="variety" id="modeVariety" checked>
+                                <input class="form-check-input" type="radio" name="mode" value="variety" id="modeVariety"
+                                    <?= $selMode === 'variety' ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="modeVariety">
-                                    🔄 <strong>Variety</strong> — rotate recipes, max 2 uses per week
+                                    🔄 <strong>Balanced</strong> — ~14 recipes, dinners roll to next-day lunch
                                 </label>
                             </div>
                             <div class="form-check card-radio">
-                                <input class="form-check-input" type="radio" name="mode" value="simple" id="modeSimple">
+                                <input class="form-check-input" type="radio" name="mode" value="simple" id="modeSimple"
+                                    <?= $selMode === 'simple' ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="modeSimple">
                                     🍗 <strong>Keep It Simple</strong> — small staple pool, batch-cook repeats
                                 </label>
