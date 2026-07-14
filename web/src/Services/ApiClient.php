@@ -4,6 +4,7 @@ namespace App\Services;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\GuzzleException;
 
 class ApiClient
 {
@@ -33,9 +34,9 @@ class ApiClient
                 'query' => $query
             ]);
             return json_decode($response->getBody(), true);
-        } catch (RequestException $e) {
+        } catch (GuzzleException $e) {
             error_log("API GET Request Error: " . $e->getMessage());
-            if ($e->hasResponse()) {
+            if ($e instanceof RequestException && $e->hasResponse()) {
                 error_log("API Response: " . $e->getResponse()->getBody()->getContents());
             }
             return [];
@@ -73,16 +74,26 @@ class ApiClient
         }
     }
 
-    public function post($endpoint, $data = [])
+    /**
+     * @param float|null $timeout Per-request timeout override in seconds.
+     *                            AI-backed endpoints (grocery, prep, weekly
+     *                            generation) can exceed the 30s default.
+     */
+    public function post($endpoint, $data = [], $timeout = null)
     {
         try {
-            $response = $this->client->request('POST', $endpoint, [
-                'json' => $data
-            ]);
+            $options = ['json' => $data];
+            if ($timeout !== null) {
+                $options['timeout'] = (float) $timeout;
+            }
+            $response = $this->client->request('POST', $endpoint, $options);
             return json_decode($response->getBody(), true);
-        } catch (RequestException $e) {
+        } catch (GuzzleException $e) {
+            // GuzzleException also covers ConnectException (timeouts/resets),
+            // which RequestException alone does NOT - an uncaught timeout here
+            // used to surface as a Slim Application Error page.
             error_log("API POST Error: " . $e->getMessage());
-            if ($e->hasResponse()) {
+            if ($e instanceof RequestException && $e->hasResponse()) {
                 $body = $e->getResponse()->getBody()->getContents();
                 error_log("API Body: " . $body);
                 $json = json_decode($body, true);

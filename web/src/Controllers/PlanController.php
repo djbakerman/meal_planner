@@ -217,7 +217,8 @@ class PlanController
             $payload['user_id'] = $user['id'];
         }
 
-        $newPlan = $this->api->post('/api/plans/generate-weekly', $payload);
+        // First run may AI-estimate macros for many recipes: allow up to 5 minutes
+        $newPlan = $this->api->post('/api/plans/generate-weekly', $payload, 300);
 
         if (isset($newPlan['id'])) {
             return $response->withHeader('Location', url('/plans/' . $newPlan['id']))->withStatus(302);
@@ -390,7 +391,11 @@ class PlanController
         $id = (int) $args['id'];
         $userId = $this->getUserId($request);
 
-        $this->api->post("/api/plans/{$id}/grocery", ['user_id' => $userId, 'force' => true]);
+        // AI generation on large (e.g. weekly) plans can take minutes
+        $result = $this->api->post("/api/plans/{$id}/grocery", ['user_id' => $userId, 'force' => true], 240);
+        if (isset($result['error'])) {
+            $this->session->flash('error', "Grocery list generation failed: " . $result['error']);
+        }
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
 
@@ -399,7 +404,11 @@ class PlanController
         $id = (int) $args['id'];
         $userId = $this->getUserId($request);
 
-        $this->api->post("/api/plans/{$id}/prep", ['user_id' => $userId, 'force' => true]);
+        // AI generation on large (e.g. weekly) plans can take minutes
+        $result = $this->api->post("/api/plans/{$id}/prep", ['user_id' => $userId, 'force' => true], 240);
+        if (isset($result['error'])) {
+            $this->session->flash('error', "Prep plan generation failed: " . $result['error']);
+        }
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
 
