@@ -83,21 +83,31 @@ def query_claude(prompt: str, model: str, api_key: str = None,
     
     payload = {
         "model": model,
-        "max_tokens": 4096,
+        # Roomier ceiling: models with adaptive thinking (Sonnet 5+) spend part
+        # of the output budget on thinking blocks before the text.
+        "max_tokens": 8192,
         "messages": [
             {"role": "user", "content": content}
         ]
     }
-    
+
     try:
         response = requests.post(config.CLAUDE_API_URL, headers=headers, json=payload, timeout=180)
-        
+
         if response.status_code != 200:
             print(f"Error: Claude API returned {response.status_code}: {response.text[:200]}")
             return None
-        
+
         result = response.json()
-        return result.get("content", [{}])[0].get("text", "")
+        # Newer models (adaptive thinking) may return thinking blocks before the
+        # text block, and can return multiple text blocks. Never assume the
+        # first content block is the text - collect ALL text blocks.
+        blocks = result.get("content", []) or []
+        text = "".join(b.get("text", "") for b in blocks
+                       if isinstance(b, dict) and b.get("type") == "text")
+        if not text:  # legacy shape fallback: first block carried text without a type
+            text = (blocks[0] or {}).get("text", "") if blocks else ""
+        return text or None
     except Exception as e:
         print(f"Error querying Claude: {e}")
         return None
