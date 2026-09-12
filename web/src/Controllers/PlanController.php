@@ -397,8 +397,9 @@ class PlanController
 
         // AI generation on large (e.g. weekly) plans can take minutes
         $result = $this->api->post("/api/plans/{$id}/grocery", ['user_id' => $userId, 'force' => true], 240);
-        if (isset($result['error'])) {
-            $this->session->flash('error', "Grocery list generation failed: " . $result['error']);
+        $msg = $result['error'] ?? $result['detail'] ?? null;
+        if ($msg) {
+            $this->session->flash('error', "Grocery list generation failed: " . (is_string($msg) ? $msg : json_encode($msg)));
         }
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }
@@ -410,8 +411,9 @@ class PlanController
 
         // AI generation on large (e.g. weekly) plans can take minutes
         $result = $this->api->post("/api/plans/{$id}/prep", ['user_id' => $userId, 'force' => true], 240);
-        if (isset($result['error'])) {
-            $this->session->flash('error', "Prep plan generation failed: " . $result['error']);
+        $msg = $result['error'] ?? $result['detail'] ?? null;
+        if ($msg) {
+            $this->session->flash('error', "Prep plan generation failed: " . (is_string($msg) ? $msg : json_encode($msg)));
         }
         return $response->withHeader('Location', url("/plans/{$id}"))->withStatus(302);
     }

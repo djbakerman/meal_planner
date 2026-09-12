@@ -645,7 +645,15 @@ def generate_grocery_list(plan_id: int, request: dict = None, db: Session = Depe
     result_text = ai_service.generate_grocery_list(
         recipe_dicts, servings=plan.target_servings,
         servings_map=servings_map, week_context=week_context)
-    
+
+    # Never store a silent failure: a None/empty response means the model call
+    # failed (bad model name, auth, upstream error) - surface it instead.
+    if not result_text or not str(result_text).strip():
+        raise HTTPException(
+            status_code=502,
+            detail="The AI model returned no output for the grocery list. Check DEFAULT_MODEL "
+                   "and the API key - journalctl on the API service shows the upstream error.")
+
     # Update plan
     # We store it as a simple dict wrapper to match JSON column type
     plan.grocery_list = {"content": result_text}
@@ -725,7 +733,14 @@ def generate_prep_plan(plan_id: int, request: dict = None, db: Session = Depends
     result_text = ai_service.generate_prep_plan(
         recipe_dicts, servings=plan.target_servings,
         servings_map=servings_map, week_context=week_context)
-    
+
+    # Never store a silent failure (see grocery endpoint)
+    if not result_text or not str(result_text).strip():
+        raise HTTPException(
+            status_code=502,
+            detail="The AI model returned no output for the prep plan. Check DEFAULT_MODEL "
+                   "and the API key - journalctl on the API service shows the upstream error.")
+
     plan.prep_plan = {"content": result_text}
     db.commit()
     db.refresh(plan)
